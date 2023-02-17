@@ -152,8 +152,10 @@ func (ds *DataStore) Count() int {
 * Delete all values from the data store
  */
 func (ds *DataStore) Truncate() {
-	// TODO needs some love
+	ds.internalStoreMutex.Lock()
 	ds.inMemoryStore = map[string]string{}
+	ds.expirationTracker = map[string]time.Time{}
+	ds.internalStoreMutex.Unlock()
 }
 
 // Expire

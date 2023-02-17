@@ -512,4 +512,26 @@ func TestThreadSafetyOfWriteOperationsWithAsyncCleanup(t *testing.T) {
 			}
 		}
 	}
+
+	ds.Truncate()
+}
+
+func TestTruncate(t *testing.T) {
+	ds := New()
+
+	for i := 0; i < 100; i++ {
+		key := fmt.Sprintf("key%d", i)
+		_, _ = ds.Insert(key, "abc123")
+	}
+
+	count := ds.Count()
+	if count != 100 {
+		t.Fatalf("Expected 100 items but found %d", count)
+	}
+
+	ds.Truncate()
+	count = ds.Count()
+	if count != 0 {
+		t.Fatalf("Expected 0 items but found %d", count)
+	}
 }
