@@ -1,9 +1,13 @@
 package datastore
 
-import "time"
+import (
+	"sync"
+	"time"
+)
 
 var inMemoryStore = map[string]string{}
 var expirationTracker = map[string]time.Time{}
+var internalStoreMutex = sync.Mutex{}
 
 // Read
 /*
@@ -15,8 +19,10 @@ var expirationTracker = map[string]time.Time{}
 * present when reading
  */
 func Read(key string) (string, time.Time, bool) {
+	internalStoreMutex.Lock()
 	readValue, present := inMemoryStore[key]
 	expiration, expirationPresent := expirationTracker[key]
+	internalStoreMutex.Unlock()
 
 	if expirationPresent && expiration.Before(time.Now()) {
 		return "", time.Time{}, false
@@ -48,8 +54,10 @@ func Insert(key string, value string) (string, bool) {
 	go cleanupExpirations()
 	existingValue, _, valueExists := Read(key)
 	if !valueExists {
+		internalStoreMutex.Lock()
 		inMemoryStore[key] = value
 		delete(expirationTracker, key)
+		internalStoreMutex.Unlock()
 		return value, true
 	}
 
@@ -69,7 +77,9 @@ func Update(key string, value string) (string, bool) {
 	go cleanupExpirations()
 	valueExists := Present(key)
 	if valueExists {
+		internalStoreMutex.Lock()
 		inMemoryStore[key] = value
+		internalStoreMutex.Unlock()
 		return value, true
 	}
 
@@ -85,11 +95,14 @@ func Update(key string, value string) (string, bool) {
 func Upsert(key string, value string) string {
 	go cleanupExpirations()
 	valueExists := Present(key)
+
+	internalStoreMutex.Lock()
 	inMemoryStore[key] = value
 
 	if !valueExists {
 		delete(expirationTracker, key)
 	}
+	internalStoreMutex.Unlock()
 
 	return value
 }
@@ -103,7 +116,11 @@ func Upsert(key string, value string) string {
 func Delete(key string) bool {
 	go cleanupExpirations()
 	valueExists := Present(key)
+
+	internalStoreMutex.Lock()
 	delete(inMemoryStore, key)
+	internalStoreMutex.Unlock()
+
 	return valueExists
 }
 
@@ -153,10 +170,12 @@ func Expire(key string, expiration time.Time) bool {
  */
 func cleanupExpirations() {
 	timestamp := time.Now()
+	internalStoreMutex.Lock()
 	for key, expiration := range expirationTracker {
 		if expiration.Before(timestamp) {
 			delete(expirationTracker, key)
 			delete(inMemoryStore, key)
 		}
 	}
+	internalStoreMutex.Unlock()
 }

@@ -1,6 +1,8 @@
 package datastore
 
 import (
+	"fmt"
+	"math/rand"
 	"testing"
 	"time"
 )
@@ -470,5 +472,42 @@ func TestDeleteTriggersAsyncExpirationCleanup(t *testing.T) {
 	count = Count()
 	if count != 0 {
 		t.Fatalf("expected count to be 0 because write cause cleanup but was %d", count)
+	}
+}
+
+func TestThreadSafetyOfWriteOperationsWithAsyncCleanup(t *testing.T) {
+	// Without mutexes on updates to the internal data store this test will crash
+	for i := 0; i < 1000; i++ {
+		if i%4 == 0 {
+			// Insert with expiration
+			key := fmt.Sprintf("key%d", i)
+			_, _ = Insert(key, "abc123")
+			_ = Expire(key, time.Now())
+		} else if i%4 == 1 {
+			// insert without expiration
+			key := fmt.Sprintf("key%d", i)
+			_, _ = Insert(key, "abc123")
+		} else if i%4 == 2 {
+			// update inserted value from last clause
+			key := fmt.Sprintf("key%d", i-1)
+			_, _ = Update(key, "def456")
+		} else if i%4 == 3 {
+			// 33/33/33 of delete the updated value or upsert to update it with an expiration or upsert a new value
+			// without an expiration
+			key := fmt.Sprintf("key%d", i-2)
+
+			rand.Seed(time.Now().UnixNano())
+			choice := rand.Intn(3-1+1) + 1
+
+			if choice == 1 {
+				_ = Delete(key)
+			} else if choice == 2 {
+				_ = Upsert(key, "abc456")
+				_ = Expire(key, time.Now())
+			} else if choice == 3 {
+				newKey := fmt.Sprintf("key%d", i)
+				Upsert(newKey, "def123")
+			}
+		}
 	}
 }
