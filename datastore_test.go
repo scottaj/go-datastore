@@ -333,3 +333,142 @@ func TestDeleteKeyWithExpirationThenRecreateItRemovesExpiration(t *testing.T) {
 		t.Fatalf("expected to find value %q for key %q with no expiration, but it had value %q with expiration %q", newData, key, readValue, readExpiration)
 	}
 }
+
+func TestInsertTriggersAsyncExpirationCleanup(t *testing.T) {
+	Truncate()
+
+	key1, data1 := "key1", "abc123"
+	key2, data2 := "key2", "abc456"
+	key3, data3 := "key3", "def123"
+	key4, data4 := "key4", "def456"
+
+	_, _ = Insert(key1, data1)
+	_, _ = Insert(key2, data2)
+	_, _ = Insert(key3, data3)
+
+	expiration := time.Now().Add(time.Millisecond * 100)
+
+	_ = Expire(key1, expiration)
+	_ = Expire(key2, expiration)
+	_ = Expire(key3, expiration)
+
+	time.Sleep(time.Millisecond * 100)
+
+	count := Count()
+	if count != 3 {
+		t.Fatalf("expected count to be 3 because there was no write to cleanup but was %d", count)
+	}
+
+	_, _ = Insert(key4, data4)
+
+	time.Sleep(time.Millisecond * 10)
+
+	count = Count()
+	if count != 1 {
+		t.Fatalf("expected count to be 1 because write cause cleanup but was %d", count)
+	}
+}
+
+func TestUpdateTriggersAsyncExpirationCleanup(t *testing.T) {
+	Truncate()
+
+	key1, data1 := "key1", "abc123"
+	key2, data2 := "key2", "abc456"
+	key3, data3 := "key3", "def123"
+
+	_, _ = Insert(key1, data1)
+	_, _ = Insert(key2, data2)
+	_, _ = Insert(key3, data3)
+
+	expiration := time.Now().Add(time.Millisecond * 100)
+
+	_ = Expire(key1, expiration)
+	_ = Expire(key2, expiration)
+
+	time.Sleep(time.Millisecond * 100)
+
+	count := Count()
+	if count != 3 {
+		t.Fatalf("expected count to be 3 because there was no write to cleanup but was %d", count)
+	}
+
+	_, _ = Update(key3, data1)
+
+	time.Sleep(time.Millisecond * 10)
+
+	count = Count()
+	if count != 1 {
+		t.Fatalf("expected count to be 1 because write cause cleanup but was %d", count)
+	}
+}
+
+func TestUpsertTriggersAsyncExpirationCleanup(t *testing.T) {
+	Truncate()
+
+	key1, data1 := "key1", "abc123"
+	key2, data2 := "key2", "abc456"
+	key3, data3 := "key3", "def123"
+	key4, data4 := "key4", "def456"
+
+	_, _ = Insert(key1, data1)
+	_, _ = Insert(key2, data2)
+	_, _ = Insert(key3, data3)
+
+	expiration := time.Now().Add(time.Millisecond * 100)
+
+	_ = Expire(key1, expiration)
+	_ = Expire(key2, expiration)
+	_ = Expire(key3, expiration)
+
+	time.Sleep(time.Millisecond * 100)
+
+	count := Count()
+	if count != 3 {
+		t.Fatalf("expected count to be 3 because there was no write to cleanup but was %d", count)
+	}
+
+	_ = Upsert(key4, data4)
+
+	time.Sleep(time.Millisecond * 10)
+
+	count = Count()
+	if count != 1 {
+		t.Fatalf("expected count to be 1 because write cause cleanup but was %d", count)
+	}
+}
+
+func TestDeleteTriggersAsyncExpirationCleanup(t *testing.T) {
+	Truncate()
+
+	key1, data1 := "key1", "abc123"
+	key2, data2 := "key2", "abc456"
+	key3, data3 := "key3", "def123"
+	key4, data4 := "key4", "def456"
+
+	_, _ = Insert(key1, data1)
+	_, _ = Insert(key2, data2)
+	_, _ = Insert(key3, data3)
+	_, _ = Insert(key4, data4)
+
+	expiration := time.Now().Add(time.Millisecond * 100)
+
+	_ = Expire(key1, expiration)
+	_ = Expire(key2, expiration)
+	_ = Expire(key3, expiration)
+
+	time.Sleep(time.Millisecond * 100)
+
+	count := Count()
+	if count != 4 {
+		t.Fatalf("expected count to be 4 because there was no write to cleanup but was %d", count)
+	}
+
+	_ = Delete(key4)
+
+	time.Sleep(time.Millisecond * 10)
+
+	count = Count()
+	if count != 0 {
+		t.Fatalf("expected count to be 0 because write cause cleanup but was %d", count)
+	}
+}

@@ -45,6 +45,7 @@ func Present(key string) bool {
 * value was not inserted because the key already existed this will return the current value of the key.
  */
 func Insert(key string, value string) (string, bool) {
+	go cleanupExpirations()
 	existingValue, _, valueExists := Read(key)
 	if !valueExists {
 		inMemoryStore[key] = value
@@ -65,6 +66,7 @@ func Insert(key string, value string) (string, bool) {
 * successful it returns the empty string "" for the value.
  */
 func Update(key string, value string) (string, bool) {
+	go cleanupExpirations()
 	valueExists := Present(key)
 	if valueExists {
 		inMemoryStore[key] = value
@@ -81,6 +83,7 @@ func Update(key string, value string) (string, bool) {
 * return the updated value of the key.
  */
 func Upsert(key string, value string) string {
+	go cleanupExpirations()
 	valueExists := Present(key)
 	inMemoryStore[key] = value
 
@@ -98,6 +101,7 @@ func Upsert(key string, value string) string {
 * returns a boolean indicating whether a value was deleted or not
  */
 func Delete(key string) bool {
+	go cleanupExpirations()
 	valueExists := Present(key)
 	delete(inMemoryStore, key)
 	return valueExists
@@ -107,7 +111,7 @@ func Delete(key string) bool {
 /**
 * Count the number of keys in the datastore
 *
-* Count will return a close approximation of the number of active keys, but for performance reasons it may count some
+* Count will return an approximation of the number of active keys, but for performance reasons it may count some
 * expired keys that have not yet been cleaned up.
 *
 * returns the number of items in the datastore as an int
@@ -139,4 +143,20 @@ func Expire(key string, expiration time.Time) bool {
 	}
 
 	return false
+}
+
+// cleanupExpirations
+/**
+* Cleans up expired items in the data store
+*
+* Internally this is run async whenever a modification is made to the data store
+ */
+func cleanupExpirations() {
+	timestamp := time.Now()
+	for key, expiration := range expirationTracker {
+		if expiration.Before(timestamp) {
+			delete(expirationTracker, key)
+			delete(inMemoryStore, key)
+		}
+	}
 }
