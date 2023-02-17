@@ -1,18 +1,27 @@
 package datastore
 
+import "time"
+
 var inMemoryStore = map[string]string{}
+var expirationTracker = map[string]time.Time{}
 
 // Read
 /*
 * Read a value from the data store that has the provided key
 *
 * Returns the value of the key if it was present and the empty string "" if it was not.
+* If the key was present returns the expiration time of the key or the empty time (epoch) if there is no expiration
 * To clarify cases where the empty string could be the actual value,also returns a bool indicating if the key was
 * present when reading
  */
-func Read(key string) (string, bool) {
+func Read(key string) (string, time.Time, bool) {
 	readValue, present := inMemoryStore[key]
-	return readValue, present
+	expiration, expirationPresent := expirationTracker[key]
+
+	if expirationPresent && expiration.Before(time.Now()) {
+		return "", time.Time{}, false
+	}
+	return readValue, expiration, present
 }
 
 // Present
@@ -22,7 +31,7 @@ func Read(key string) (string, bool) {
 * returns a boolean indicating if the key was present or not
  */
 func Present(key string) bool {
-	_, present := Read(key)
+	_, _, present := Read(key)
 	return present
 }
 
@@ -30,15 +39,16 @@ func Present(key string) bool {
 /*
 * Insert the provided value into the data stroe under the provided key
 *
-* Will not overwirte an existing value if the key already exists
+* Will not overwrite an existing value if the key already exists.
 *
 * returns the value of the key in the data store and a boolean indicating if the new value was inserted. If the new
 * value was not inserted because the key already existed this will return the current value of the key.
  */
 func Insert(key string, value string) (string, bool) {
-	existingValue, valueExists := inMemoryStore[key]
+	existingValue, _, valueExists := Read(key)
 	if !valueExists {
 		inMemoryStore[key] = value
+		delete(expirationTracker, key)
 		return value, true
 	}
 
@@ -55,7 +65,7 @@ func Insert(key string, value string) (string, bool) {
 * successful it returns the empty string "" for the value.
  */
 func Update(key string, value string) (string, bool) {
-	_, valueExists := inMemoryStore[key]
+	valueExists := Present(key)
 	if valueExists {
 		inMemoryStore[key] = value
 		return value, true
@@ -71,7 +81,13 @@ func Update(key string, value string) (string, bool) {
 * return the updated value of the key.
  */
 func Upsert(key string, value string) string {
+	valueExists := Present(key)
 	inMemoryStore[key] = value
+
+	if !valueExists {
+		delete(expirationTracker, key)
+	}
+
 	return value
 }
 
@@ -82,7 +98,7 @@ func Upsert(key string, value string) string {
 * returns a boolean indicating whether a value was deleted or not
  */
 func Delete(key string) bool {
-	_, valueExists := inMemoryStore[key]
+	valueExists := Present(key)
 	delete(inMemoryStore, key)
 	return valueExists
 }
@@ -90,6 +106,9 @@ func Delete(key string) bool {
 // Count
 /**
 * Count the number of keys in the datastore
+*
+* Count will return a close approximation of the number of active keys, but for performance reasons it may count some
+* expired keys that have not yet been cleaned up.
 *
 * returns the number of items in the datastore as an int
  */
@@ -103,4 +122,21 @@ func Count() int {
  */
 func Truncate() {
 	inMemoryStore = map[string]string{}
+}
+
+// Expire
+/**
+* Sets an expiration time for a key
+*
+* Once the expiration time for a key passes it will behave as if it has been deleted. The actusal deletion of
+* underlying expired data will happen asyncronously
+ */
+func Expire(key string, expiration time.Time) bool {
+	valueExists := Present(key)
+	if valueExists {
+		expirationTracker[key] = expiration
+		return true
+	}
+
+	return false
 }
