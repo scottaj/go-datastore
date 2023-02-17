@@ -5,9 +5,18 @@ import (
 	"time"
 )
 
-var inMemoryStore = map[string]string{}
-var expirationTracker = map[string]time.Time{}
-var internalStoreMutex = sync.Mutex{}
+type DataStore struct {
+	inMemoryStore      map[string]string
+	expirationTracker  map[string]time.Time
+	internalStoreMutex sync.Mutex
+}
+
+func New() DataStore {
+	return DataStore{
+		inMemoryStore:     map[string]string{},
+		expirationTracker: map[string]time.Time{},
+	}
+}
 
 // Read
 /*
@@ -18,11 +27,11 @@ var internalStoreMutex = sync.Mutex{}
 * To clarify cases where the empty string could be the actual value,also returns a bool indicating if the key was
 * present when reading
  */
-func Read(key string) (string, time.Time, bool) {
-	internalStoreMutex.Lock()
-	readValue, present := inMemoryStore[key]
-	expiration, expirationPresent := expirationTracker[key]
-	internalStoreMutex.Unlock()
+func (ds *DataStore) Read(key string) (string, time.Time, bool) {
+	ds.internalStoreMutex.Lock()
+	readValue, present := ds.inMemoryStore[key]
+	expiration, expirationPresent := ds.expirationTracker[key]
+	ds.internalStoreMutex.Unlock()
 
 	if expirationPresent && expiration.Before(time.Now()) {
 		return "", time.Time{}, false
@@ -36,8 +45,8 @@ func Read(key string) (string, time.Time, bool) {
 *
 * returns a boolean indicating if the key was present or not
  */
-func Present(key string) bool {
-	_, _, present := Read(key)
+func (ds *DataStore) Present(key string) bool {
+	_, _, present := ds.Read(key)
 	return present
 }
 
@@ -50,14 +59,14 @@ func Present(key string) bool {
 * returns the value of the key in the data store and a boolean indicating if the new value was inserted. If the new
 * value was not inserted because the key already existed this will return the current value of the key.
  */
-func Insert(key string, value string) (string, bool) {
-	go cleanupExpirations()
-	existingValue, _, valueExists := Read(key)
+func (ds *DataStore) Insert(key string, value string) (string, bool) {
+	go ds.cleanupExpirations()
+	existingValue, _, valueExists := ds.Read(key)
 	if !valueExists {
-		internalStoreMutex.Lock()
-		inMemoryStore[key] = value
-		delete(expirationTracker, key)
-		internalStoreMutex.Unlock()
+		ds.internalStoreMutex.Lock()
+		ds.inMemoryStore[key] = value
+		delete(ds.expirationTracker, key)
+		ds.internalStoreMutex.Unlock()
 		return value, true
 	}
 
@@ -73,13 +82,13 @@ func Insert(key string, value string) (string, bool) {
 * Returns the new value of the key and a boolean indicating if the update was successful. If the update was not
 * successful it returns the empty string "" for the value.
  */
-func Update(key string, value string) (string, bool) {
-	go cleanupExpirations()
-	valueExists := Present(key)
+func (ds *DataStore) Update(key string, value string) (string, bool) {
+	go ds.cleanupExpirations()
+	valueExists := ds.Present(key)
 	if valueExists {
-		internalStoreMutex.Lock()
-		inMemoryStore[key] = value
-		internalStoreMutex.Unlock()
+		ds.internalStoreMutex.Lock()
+		ds.inMemoryStore[key] = value
+		ds.internalStoreMutex.Unlock()
 		return value, true
 	}
 
@@ -92,17 +101,17 @@ func Update(key string, value string) (string, bool) {
 *
 * return the updated value of the key.
  */
-func Upsert(key string, value string) string {
-	go cleanupExpirations()
-	valueExists := Present(key)
+func (ds *DataStore) Upsert(key string, value string) string {
+	go ds.cleanupExpirations()
+	valueExists := ds.Present(key)
 
-	internalStoreMutex.Lock()
-	inMemoryStore[key] = value
+	ds.internalStoreMutex.Lock()
+	ds.inMemoryStore[key] = value
 
 	if !valueExists {
-		delete(expirationTracker, key)
+		delete(ds.expirationTracker, key)
 	}
-	internalStoreMutex.Unlock()
+	ds.internalStoreMutex.Unlock()
 
 	return value
 }
@@ -113,14 +122,14 @@ func Upsert(key string, value string) string {
 *
 * returns a boolean indicating whether a value was deleted or not
  */
-func Delete(key string) bool {
-	go cleanupExpirations()
-	valueExists := Present(key)
+func (ds *DataStore) Delete(key string) bool {
+	go ds.cleanupExpirations()
+	valueExists := ds.Present(key)
 
-	internalStoreMutex.Lock()
-	delete(inMemoryStore, key)
-	delete(expirationTracker, key)
-	internalStoreMutex.Unlock()
+	ds.internalStoreMutex.Lock()
+	delete(ds.inMemoryStore, key)
+	delete(ds.expirationTracker, key)
+	ds.internalStoreMutex.Unlock()
 
 	return valueExists
 }
@@ -134,16 +143,17 @@ func Delete(key string) bool {
 *
 * returns the number of items in the datastore as an int
  */
-func Count() int {
-	return len(inMemoryStore)
+func (ds *DataStore) Count() int {
+	return len(ds.inMemoryStore)
 }
 
 // Truncate
 /**
 * Delete all values from the data store
  */
-func Truncate() {
-	inMemoryStore = map[string]string{}
+func (ds *DataStore) Truncate() {
+	// TODO needs some love
+	ds.inMemoryStore = map[string]string{}
 }
 
 // Expire
@@ -153,10 +163,10 @@ func Truncate() {
 * Once the expiration time for a key passes it will behave as if it has been deleted. The actusal deletion of
 * underlying expired data will happen asyncronously
  */
-func Expire(key string, expiration time.Time) bool {
-	valueExists := Present(key)
+func (ds *DataStore) Expire(key string, expiration time.Time) bool {
+	valueExists := ds.Present(key)
 	if valueExists {
-		expirationTracker[key] = expiration
+		ds.expirationTracker[key] = expiration
 		return true
 	}
 
@@ -169,14 +179,14 @@ func Expire(key string, expiration time.Time) bool {
 *
 * Internally this is run async whenever a modification is made to the data store
  */
-func cleanupExpirations() {
+func (ds *DataStore) cleanupExpirations() {
 	timestamp := time.Now()
-	internalStoreMutex.Lock()
-	for key, expiration := range expirationTracker {
+	ds.internalStoreMutex.Lock()
+	for key, expiration := range ds.expirationTracker {
 		if expiration.Before(timestamp) {
-			delete(expirationTracker, key)
-			delete(inMemoryStore, key)
+			delete(ds.expirationTracker, key)
+			delete(ds.inMemoryStore, key)
 		}
 	}
-	internalStoreMutex.Unlock()
+	ds.internalStoreMutex.Unlock()
 }
