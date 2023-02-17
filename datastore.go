@@ -119,6 +119,7 @@ func Delete(key string) bool {
 
 	internalStoreMutex.Lock()
 	delete(inMemoryStore, key)
+	delete(expirationTracker, key)
 	internalStoreMutex.Unlock()
 
 	return valueExists
