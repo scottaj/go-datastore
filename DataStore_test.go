@@ -627,7 +627,7 @@ func TestPrefixSearchUpdatedOnExpire(t *testing.T) {
 	}
 }
 
-func TestDeletingKeysByPrefix(t *testing.T) {
+func TestDeleteKeysByPrefix(t *testing.T) {
 	ds := NewDataStore()
 
 	data := "abc123"
@@ -675,6 +675,66 @@ func TestDeletingKeysByPrefix(t *testing.T) {
 	deletedCount = ds.DeleteBy("")
 	noKeys := ds.KeysBy("")
 	if deletedCount != 1 || noKeys != nil {
+		t.Fatalf("expected no keys left but found %d: %q", len(noKeys), noKeys)
+	}
+}
+
+func TestExpireKeysByPrefix(t *testing.T) {
+	ds := NewDataStore()
+
+	data := "abc123"
+
+	key0 := "region:1:store:1:employee:1"
+	key1 := "region:1:store:1:employee:2"
+	key2 := "region:1:manager"
+	key3 := "region:1:store:2:employee:4"
+	key4 := "region:1:store:3:employee:2"
+	key5 := "region:1:store:1"
+	key6 := "region:2:store:4:employee:7"
+	key7 := "region:2:store:4:employee:8"
+	key8 := "region:2:store:5:employee:7"
+	key9 := "category:3:product:7"
+
+	ds.Insert(key0, data)
+	ds.Insert(key1, data)
+	ds.Insert(key2, data)
+	ds.Insert(key3, data)
+	ds.Insert(key4, data)
+	ds.Insert(key5, data)
+	ds.Insert(key6, data)
+	ds.Insert(key7, data)
+	ds.Insert(key8, data)
+	ds.Upsert(key9, data)
+
+	expiredCount := ds.ExpireBy("region:5", time.Now().Add(time.Millisecond*5))
+	time.Sleep(time.Millisecond * 10)
+
+	allKeys := ds.KeysBy("")
+	if expiredCount != 0 || len(allKeys) != 10 {
+		t.Fatalf("expected 10 keys left but found %d: %q", len(allKeys), allKeys)
+	}
+
+	expiredCount = ds.ExpireBy("region:1:store:1", time.Now().Add(time.Millisecond*5))
+	time.Sleep(time.Millisecond * 10)
+
+	notStore1Keys := ds.KeysBy("")
+	if expiredCount != 3 || len(notStore1Keys) != 7 {
+		t.Fatalf("expected 7 keys left but found %d: %q", len(notStore1Keys), notStore1Keys)
+	}
+
+	expiredCount = ds.ExpireBy("region", time.Now().Add(time.Millisecond*5))
+	time.Sleep(time.Millisecond * 10)
+
+	notRegionKeys := ds.KeysBy("")
+	if expiredCount != 6 || len(notRegionKeys) != 1 {
+		t.Fatalf("expected 1 key left but found %d: %q", len(notRegionKeys), notRegionKeys)
+	}
+
+	expiredCount = ds.ExpireBy("", time.Now().Add(time.Millisecond*5))
+	time.Sleep(time.Millisecond * 10)
+
+	noKeys := ds.KeysBy("")
+	if expiredCount != 1 || noKeys != nil {
 		t.Fatalf("expected no keys left but found %d: %q", len(noKeys), noKeys)
 	}
 }

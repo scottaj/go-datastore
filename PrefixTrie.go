@@ -1,6 +1,8 @@
 package datastore
 
-import "strings"
+import (
+	"strings"
+)
 
 type trieNode struct {
 	value  string

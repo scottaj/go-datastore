@@ -5,18 +5,22 @@ import (
 	"time"
 )
 
+type dataNode struct {
+	value         string
+	hasExpiration bool
+	expiration    time.Time
+}
+
 type DataStore struct {
-	inMemoryStore      map[string]string
-	expirationTracker  map[string]time.Time
+	inMemoryStore      map[string]dataNode
 	keyIndex           PrefixTrie
 	internalStoreMutex sync.Mutex
 }
 
 func NewDataStore() DataStore {
 	return DataStore{
-		inMemoryStore:     map[string]string{},
-		expirationTracker: map[string]time.Time{},
-		keyIndex:          NewPrefixTrie(),
+		inMemoryStore: map[string]dataNode{},
+		keyIndex:      NewPrefixTrie(),
 	}
 }
 
@@ -32,13 +36,12 @@ func NewDataStore() DataStore {
 func (ds *DataStore) Read(key string) (string, time.Time, bool) {
 	ds.internalStoreMutex.Lock()
 	readValue, present := ds.inMemoryStore[key]
-	expiration, expirationPresent := ds.expirationTracker[key]
 	ds.internalStoreMutex.Unlock()
 
-	if expirationPresent && expiration.Before(time.Now()) {
+	if readValue.hasExpiration && readValue.expiration.Before(time.Now()) {
 		return "", time.Time{}, false
 	}
-	return readValue, expiration, present
+	return readValue.value, readValue.expiration, present
 }
 
 // Present
@@ -66,9 +69,8 @@ func (ds *DataStore) Insert(key string, value string) (string, bool) {
 	existingValue, _, valueExists := ds.Read(key)
 	if !valueExists {
 		ds.internalStoreMutex.Lock()
-		ds.inMemoryStore[key] = value
+		ds.inMemoryStore[key] = dataNode{value: value}
 		ds.keyIndex.Add(key)
-		delete(ds.expirationTracker, key)
 		ds.internalStoreMutex.Unlock()
 		return value, true
 	}
@@ -90,7 +92,7 @@ func (ds *DataStore) Update(key string, value string) (string, bool) {
 	valueExists := ds.Present(key)
 	if valueExists {
 		ds.internalStoreMutex.Lock()
-		ds.inMemoryStore[key] = value
+		ds.inMemoryStore[key] = dataNode{value: value}
 		ds.internalStoreMutex.Unlock()
 		return value, true
 	}
@@ -106,15 +108,11 @@ func (ds *DataStore) Update(key string, value string) (string, bool) {
  */
 func (ds *DataStore) Upsert(key string, value string) string {
 	go ds.cleanupExpirations()
-	valueExists := ds.Present(key)
 
 	ds.internalStoreMutex.Lock()
-	ds.inMemoryStore[key] = value
+	ds.inMemoryStore[key] = dataNode{value: value}
 	ds.keyIndex.Add(key)
 
-	if !valueExists {
-		delete(ds.expirationTracker, key)
-	}
 	ds.internalStoreMutex.Unlock()
 
 	return value
@@ -132,7 +130,6 @@ func (ds *DataStore) Delete(key string) bool {
 
 	ds.internalStoreMutex.Lock()
 	delete(ds.inMemoryStore, key)
-	delete(ds.expirationTracker, key)
 	ds.keyIndex.Delete(key)
 	ds.internalStoreMutex.Unlock()
 
@@ -158,8 +155,7 @@ func (ds *DataStore) Count() int {
  */
 func (ds *DataStore) Truncate() {
 	ds.internalStoreMutex.Lock()
-	ds.inMemoryStore = map[string]string{}
-	ds.expirationTracker = map[string]time.Time{}
+	ds.inMemoryStore = map[string]dataNode{}
 	ds.internalStoreMutex.Unlock()
 }
 
@@ -173,11 +169,51 @@ func (ds *DataStore) Truncate() {
 func (ds *DataStore) Expire(key string, expiration time.Time) bool {
 	valueExists := ds.Present(key)
 	if valueExists {
-		ds.expirationTracker[key] = expiration
+		ds.internalStoreMutex.Lock()
+		valueToUpdate := ds.inMemoryStore[key]
+		valueToUpdate.hasExpiration = true
+		valueToUpdate.expiration = expiration
+		ds.inMemoryStore[key] = valueToUpdate
+		ds.internalStoreMutex.Unlock()
+
 		return true
 	}
 
 	return false
+}
+
+func (ds *DataStore) KeysBy(prefix string) []string {
+	allKeys := ds.keyIndex.Find(prefix)
+	var unexpiredKeys []string
+	for _, key := range allKeys {
+		if ds.Present(key) {
+			unexpiredKeys = append(unexpiredKeys, key)
+		}
+	}
+
+	return unexpiredKeys
+}
+
+func (ds *DataStore) DeleteBy(prefix string) int {
+	ds.internalStoreMutex.Lock()
+	keysToRemove := ds.keyIndex.Find(prefix)
+	ds.keyIndex.DeleteAll(prefix)
+	for _, key := range keysToRemove {
+		delete(ds.inMemoryStore, key)
+	}
+	ds.internalStoreMutex.Unlock()
+
+	return len(keysToRemove)
+}
+
+func (ds *DataStore) ExpireBy(prefix string, expiration time.Time) int {
+	keysToExpire := ds.KeysBy(prefix)
+
+	for _, key := range keysToExpire {
+		ds.Expire(key, expiration)
+	}
+
+	return len(keysToExpire)
 }
 
 // cleanupExpirations
@@ -189,29 +225,11 @@ func (ds *DataStore) Expire(key string, expiration time.Time) bool {
 func (ds *DataStore) cleanupExpirations() {
 	ds.internalStoreMutex.Lock()
 	timestamp := time.Now()
-	for key, expiration := range ds.expirationTracker {
-		if expiration.Before(timestamp) {
-			delete(ds.expirationTracker, key)
+	for key, value := range ds.inMemoryStore {
+		if value.hasExpiration && value.expiration.Before(timestamp) {
 			delete(ds.inMemoryStore, key)
 			ds.keyIndex.Delete(key)
 		}
 	}
 	ds.internalStoreMutex.Unlock()
-}
-
-func (ds *DataStore) KeysBy(prefix string) []string {
-	return ds.keyIndex.Find(prefix)
-}
-
-func (ds *DataStore) DeleteBy(prefix string) int {
-	ds.internalStoreMutex.Lock()
-	keysToRemove := ds.keyIndex.Find(prefix)
-	ds.keyIndex.DeleteAll(prefix)
-	for _, key := range keysToRemove {
-		delete(ds.inMemoryStore, key)
-		delete(ds.expirationTracker, key)
-	}
-	ds.internalStoreMutex.Unlock()
-
-	return len(keysToRemove)
 }
