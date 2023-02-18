@@ -182,6 +182,16 @@ func (ds *DataStore) Expire(key string, expiration time.Time) bool {
 	return false
 }
 
+// KeysBy
+/**
+* Find all keys in the datastore that match the provided prefix
+*
+* Only works on a complete prefix subset bounded by the delimiter. For exampke if you have a key "country:USA:state:MI"
+* and a configured delimiter of ":"; then you could find that key with the searches "", "country", and "country:USA"
+* but not the searches "cou", "country:", or "country:Canada"
+*
+* Return a slice of all the string keys that match the prefix
+ */
 func (ds *DataStore) KeysBy(prefix string) []string {
 	allKeys := ds.keyIndex.Find(prefix)
 	var unexpiredKeys []string
@@ -194,9 +204,15 @@ func (ds *DataStore) KeysBy(prefix string) []string {
 	return unexpiredKeys
 }
 
+// DeleteBy
+/**
+* Delete all keys that match a provided prefix
+*
+* The same restrictions as to what constitute matching a key as described in KeysBy apply to this method
+ */
 func (ds *DataStore) DeleteBy(prefix string) int {
 	ds.internalStoreMutex.Lock()
-	keysToRemove := ds.keyIndex.Find(prefix)
+	keysToRemove := ds.KeysBy(prefix)
 	ds.keyIndex.DeleteAll(prefix)
 	for _, key := range keysToRemove {
 		delete(ds.inMemoryStore, key)
@@ -206,6 +222,12 @@ func (ds *DataStore) DeleteBy(prefix string) int {
 	return len(keysToRemove)
 }
 
+// ExpireBy
+/**
+* Set the provided expiration on all keys matching the provided prefix
+*
+* The same restrictions as to what constitute matching a key as described in KeysBy apply to this method
+ */
 func (ds *DataStore) ExpireBy(prefix string, expiration time.Time) int {
 	keysToExpire := ds.KeysBy(prefix)
 

@@ -138,6 +138,21 @@ func (t *PrefixTrie) findKeys(node *trieNode) []string {
 	}
 }
 
+// deleteKey
+/**
+* Delete a specific child node of the provided node from the prefixTrie that exactly matches the provided key value
+*
+* What deleting means depends on whether the matching node has any child nodes.
+* If it has child nodes then the `isKey` property of the node is set to false and the node is not removed.
+* If it does not have child nodes then the node it removed from the trie and deleted. If the node has any parent nodes
+* that have no children except the deleted nodes (or other parents in the tree that fit that definition) then those are
+* deleted as well.
+*
+* Returns two booleans, the first boolean indicates whether this particular call of the method visited a node that
+* matched the provided key. This parameter is used for recursion and should not be used directly by a caller.
+* The other parameter indicates whether any recursive call of this method below this call visited a node that matched
+* the key and was deleted and is for the external caller's use.
+ */
 func (t *PrefixTrie) deleteKey(node *trieNode, key string) (bool, bool) {
 	anythingDeleted := false
 
@@ -165,6 +180,16 @@ func (t *PrefixTrie) deleteKey(node *trieNode, key string) (bool, bool) {
 	}
 }
 
+// deleteBranch
+/**
+* Delete a child node under the provided node that exactly matches the provided key prefix, including deleting all
+* the children of that node
+*
+* Returns two booleans, the first boolean indicates whether this particular call of the method visited a node that
+* matched the provided key. This parameter is used for recursion and should not be used directly by a caller.
+* The other parameter indicates whether any recursive call of this method below this call visited a node that matched
+* the key and was deleted and is for the external caller's use.
+ */
 func (t *PrefixTrie) deleteBranch(node *trieNode, prefix string) (bool, bool) {
 	anythingDeleted := false
 
