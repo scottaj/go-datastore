@@ -53,6 +53,19 @@ func (t *PrefixTrie) Add(prefix string) {
 	currentNode.isKey = true
 }
 
+// Delete
+/**
+* Delete an exact key from the trie
+*
+* If the key has children in the tree, just mark it as no longer being a key.
+*
+* If the key has parent nodes that are not keys and do not have other children delete those as well
+ */
+func (t *PrefixTrie) Delete(key string) bool {
+	_, anythingDeleted := t.deleteKey(&t.root, key)
+	return anythingDeleted
+}
+
 // Find
 /**
 * Find all keys that start with the provided prefix
@@ -110,5 +123,32 @@ func (t *PrefixTrie) findKeys(node *trieNode) []string {
 		}
 
 		return keys
+	}
+}
+
+func (t *PrefixTrie) deleteKey(node *trieNode, key string) (bool, bool) {
+	anythingDeleted := false
+
+	if node == nil {
+		return false, false
+	} else if node.value == key {
+		return true, node.isKey
+	} else {
+		for _, childNode := range node.leaves {
+			deleteKey, anythingDeletedHere := t.deleteKey(childNode, key)
+			anythingDeleted = anythingDeleted || anythingDeletedHere
+			if deleteKey {
+				if childNode.leaves == nil {
+					delete(node.leaves, childNode.value)
+				} else {
+					childNode.isKey = false
+				}
+			}
+		}
+
+		if node.leaves == nil && !node.isKey {
+			return true, anythingDeleted
+		}
+		return false, anythingDeleted
 	}
 }

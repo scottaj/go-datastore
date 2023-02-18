@@ -133,6 +133,7 @@ func (ds *DataStore) Delete(key string) bool {
 	ds.internalStoreMutex.Lock()
 	delete(ds.inMemoryStore, key)
 	delete(ds.expirationTracker, key)
+	ds.keyIndex.Delete(key)
 	ds.internalStoreMutex.Unlock()
 
 	return valueExists

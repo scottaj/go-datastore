@@ -583,3 +583,26 @@ func TestFindingKeysByPrefix(t *testing.T) {
 		t.Fatalf("expected no keys but found %d: %q", len(noKeys), noKeys)
 	}
 }
+
+func TestPrefixSearchUpdatedOnDelete(t *testing.T) {
+	ds := NewDataStore()
+
+	data := "abc123"
+
+	key0 := "region:1:store:1:employee:1"
+	key1 := "region:1:store:1:employee:2"
+	key2 := "region:1:manager"
+
+	ds.Insert(key0, data)
+	ds.Insert(key1, data)
+	ds.Insert(key2, data)
+
+	ds.Delete(key1)
+
+	allKeys := ds.KeysBy("")
+	if len(allKeys) != 2 {
+		t.Fatalf("expected 2 keys but found %d: %q", len(allKeys), allKeys)
+	}
+}
+
+// test trie update on expire

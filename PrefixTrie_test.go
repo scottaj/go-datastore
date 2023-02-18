@@ -207,6 +207,98 @@ func TestTryToFindWithIncompletePrefix(t *testing.T) {
 	}
 }
 
+func TestDeleteLeafNode(t *testing.T) {
+	trie := NewPrefixTrie()
+
+	node1 := "country:USA"
+	node2 := "country:Canada"
+
+	trie.Add(node1)
+	trie.Add(node2)
+
+	deleted := trie.Delete(node1)
+
+	remainingLeaves := collectLeaves(&trie.root)
+	if !deleted || len(remainingLeaves) != 1 || remainingLeaves[0].value != node2 {
+		t.Fatalf("Expected 1 node with value %q after delete but got %d: %v", node2, len(remainingLeaves), remainingLeaves)
+	}
+}
+
+func TestDeleteNodeWithChildren(t *testing.T) {
+	trie := NewPrefixTrie()
+
+	node1 := "country:USA"
+	node2 := "country:USA:state:MI"
+	node3 := "country:USA:state:OH"
+
+	trie.Add(node1)
+	trie.Add(node2)
+	trie.Add(node3)
+
+	deleted := trie.Delete(node1)
+
+	remainingLeaves := collectLeaves(&trie.root)
+	if !deleted || len(remainingLeaves) != 2 {
+		t.Fatalf("Expected 2 nodes after delete but got %d: %v", len(remainingLeaves), remainingLeaves)
+	}
+}
+
+func TestDeleteLastNode(t *testing.T) {
+	trie := NewPrefixTrie()
+
+	node1 := "country:USA"
+	node2 := "country:Canada"
+
+	trie.Add(node1)
+	trie.Add(node2)
+
+	trie.Delete(node1)
+	trie.Delete(node2)
+
+	remainingLeaves := collectLeaves(&trie.root)
+	if len(remainingLeaves) != 0 {
+		t.Fatalf("Expected no nodes")
+	}
+}
+
+func TestDeletePrefixThatIsNotAKey(t *testing.T) {
+	trie := NewPrefixTrie()
+
+	node1 := "country:USA:state:MI"
+	node2 := "country:Canada:province:ON"
+
+	trie.Add(node1)
+	trie.Add(node2)
+
+	deleted := trie.Delete("country:USA")
+
+	remainingLeaves := collectLeaves(&trie.root)
+	if deleted || len(remainingLeaves) != 2 {
+		t.Fatalf("Expected nothing to be deleted, but something was: %v", remainingLeaves)
+	}
+}
+
+// multi delete
+/*
+func TestDeleteAllLeafNode(t *testing.T) {
+	trie := NewPrefixTrie()
+
+	node1 := "country:USA:state:MI"
+	node2 := "country:Canada:province:ON"
+	node3 := "country:USA:state:OH"
+	trie.Add(node1)
+	trie.Add(node2)
+	trie.Add(node3)
+
+	trie.DeleteAll("country:USA")
+
+	remainingLeaves := collectLeaves(&trie.root)
+	if len(remainingLeaves) != 1 || remainingLeaves[0].value != node2 {
+		t.Fatalf("Expected 1 node with value %q after delete but got %v", node2, remainingLeaves)
+	}
+}
+*/
+
 func collectLeaves(node *trieNode) []trieNode {
 	var leaves []trieNode
 
