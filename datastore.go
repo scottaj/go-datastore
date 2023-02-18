@@ -168,7 +168,7 @@ func (ds *DataStore) Truncate() {
 * Sets an expiration time for a key
 *
 * Once the expiration time for a key passes it will behave as if it has been deleted. The actusal deletion of
-* underlying expired data will happen asyncronously
+* underlying expired data will happen asynchronously
  */
 func (ds *DataStore) Expire(key string, expiration time.Time) bool {
 	valueExists := ds.Present(key)
@@ -193,6 +193,7 @@ func (ds *DataStore) cleanupExpirations() {
 		if expiration.Before(timestamp) {
 			delete(ds.expirationTracker, key)
 			delete(ds.inMemoryStore, key)
+			ds.keyIndex.Delete(key)
 		}
 	}
 	ds.internalStoreMutex.Unlock()

@@ -605,4 +605,24 @@ func TestPrefixSearchUpdatedOnDelete(t *testing.T) {
 	}
 }
 
-// test trie update on expire
+func TestPrefixSearchUpdatedOnExpire(t *testing.T) {
+	ds := NewDataStore()
+
+	data := "abc123"
+
+	key0 := "region:1:store:1:employee:1"
+	key1 := "region:1:store:1:employee:2"
+	key2 := "region:1:manager"
+
+	ds.Insert(key0, data)
+	ds.Insert(key1, data)
+	ds.Insert(key2, data)
+
+	ds.Expire(key1, time.Now())
+	time.Sleep(time.Millisecond * 10)
+
+	allKeys := ds.KeysBy("")
+	if len(allKeys) != 2 {
+		t.Fatalf("expected 2 keys but found %d: %q", len(allKeys), allKeys)
+	}
+}
