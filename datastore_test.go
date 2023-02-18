@@ -8,7 +8,7 @@ import (
 )
 
 func TestInsertAndRead(t *testing.T) {
-	ds := New()
+	ds := NewDataStore()
 
 	data := "abc123"
 	key := "testkey"
@@ -24,7 +24,7 @@ func TestInsertAndRead(t *testing.T) {
 }
 
 func TestInsertDuplicate(t *testing.T) {
-	ds := New()
+	ds := NewDataStore()
 
 	data := "abc123"
 	key := "testkey"
@@ -41,7 +41,7 @@ func TestInsertDuplicate(t *testing.T) {
 }
 
 func TestReadAbsent(t *testing.T) {
-	ds := New()
+	ds := NewDataStore()
 
 	value, _, present := ds.Read("def456")
 	if value != "" || present == true {
@@ -50,7 +50,7 @@ func TestReadAbsent(t *testing.T) {
 }
 
 func TestReadEmptyString(t *testing.T) {
-	ds := New()
+	ds := NewDataStore()
 
 	data := ""
 	key := "testkey"
@@ -66,7 +66,7 @@ func TestReadEmptyString(t *testing.T) {
 }
 
 func TestUpdateExistingValueAndRead(t *testing.T) {
-	ds := New()
+	ds := NewDataStore()
 
 	data := "abc123"
 	key := "testkey"
@@ -86,7 +86,7 @@ func TestUpdateExistingValueAndRead(t *testing.T) {
 }
 
 func TestUpdateAbsentValueAndRead(t *testing.T) {
-	ds := New()
+	ds := NewDataStore()
 
 	key := "testkey"
 
@@ -104,7 +104,7 @@ func TestUpdateAbsentValueAndRead(t *testing.T) {
 }
 
 func TestUpsertNewValueAndUpdateIt(t *testing.T) {
-	ds := New()
+	ds := NewDataStore()
 
 	data := "abc123"
 	key := "testkey"
@@ -131,7 +131,7 @@ func TestUpsertNewValueAndUpdateIt(t *testing.T) {
 }
 
 func TestDeleteExistingValue(t *testing.T) {
-	ds := New()
+	ds := NewDataStore()
 
 	data := "abc123"
 	key := "testkey"
@@ -151,7 +151,7 @@ func TestDeleteExistingValue(t *testing.T) {
 }
 
 func TestDeleteAbsentValue(t *testing.T) {
-	ds := New()
+	ds := NewDataStore()
 
 	key := "testkey"
 
@@ -168,7 +168,7 @@ func TestDeleteAbsentValue(t *testing.T) {
 }
 
 func TestInsertAndPresent(t *testing.T) {
-	ds := New()
+	ds := NewDataStore()
 
 	data := "abc123"
 	key := "testkey"
@@ -190,7 +190,7 @@ func TestInsertAndPresent(t *testing.T) {
 }
 
 func TestCount(t *testing.T) {
-	ds := New()
+	ds := NewDataStore()
 
 	count := ds.Count()
 	if count != 0 {
@@ -229,7 +229,7 @@ func TestCount(t *testing.T) {
 }
 
 func TestReadExpiredValue(t *testing.T) {
-	ds := New()
+	ds := NewDataStore()
 
 	data := "abc123"
 	key := "testkey"
@@ -255,7 +255,7 @@ func TestReadExpiredValue(t *testing.T) {
 }
 
 func TestExpireNonExistentKey(t *testing.T) {
-	ds := New()
+	ds := NewDataStore()
 
 	success := ds.Expire("xyz987", time.Now())
 	if success == true {
@@ -264,7 +264,7 @@ func TestExpireNonExistentKey(t *testing.T) {
 }
 
 func TestInsertExpiredKeyRemovesExpiration(t *testing.T) {
-	ds := New()
+	ds := NewDataStore()
 
 	data := "abc123"
 	key := "testkey"
@@ -289,7 +289,7 @@ func TestInsertExpiredKeyRemovesExpiration(t *testing.T) {
 }
 
 func TestUpsertExpiredKeyRemovesExpiration(t *testing.T) {
-	ds := New()
+	ds := NewDataStore()
 
 	data := "abc123"
 	key := "testkey"
@@ -314,7 +314,7 @@ func TestUpsertExpiredKeyRemovesExpiration(t *testing.T) {
 }
 
 func TestDeleteKeyWithExpirationThenRecreateItRemovesExpiration(t *testing.T) {
-	ds := New()
+	ds := NewDataStore()
 
 	data := "abc123"
 	key := "testkey"
@@ -337,7 +337,7 @@ func TestDeleteKeyWithExpirationThenRecreateItRemovesExpiration(t *testing.T) {
 }
 
 func TestInsertTriggersAsyncExpirationCleanup(t *testing.T) {
-	ds := New()
+	ds := NewDataStore()
 
 	key1, data1 := "key1", "abc123"
 	key2, data2 := "key2", "abc456"
@@ -372,7 +372,7 @@ func TestInsertTriggersAsyncExpirationCleanup(t *testing.T) {
 }
 
 func TestUpdateTriggersAsyncExpirationCleanup(t *testing.T) {
-	ds := New()
+	ds := NewDataStore()
 
 	key1, data1 := "key1", "abc123"
 	key2, data2 := "key2", "abc456"
@@ -405,7 +405,7 @@ func TestUpdateTriggersAsyncExpirationCleanup(t *testing.T) {
 }
 
 func TestUpsertTriggersAsyncExpirationCleanup(t *testing.T) {
-	ds := New()
+	ds := NewDataStore()
 
 	key1, data1 := "key1", "abc123"
 	key2, data2 := "key2", "abc456"
@@ -440,7 +440,7 @@ func TestUpsertTriggersAsyncExpirationCleanup(t *testing.T) {
 }
 
 func TestDeleteTriggersAsyncExpirationCleanup(t *testing.T) {
-	ds := New()
+	ds := NewDataStore()
 
 	key1, data1 := "key1", "abc123"
 	key2, data2 := "key2", "abc456"
@@ -476,7 +476,7 @@ func TestDeleteTriggersAsyncExpirationCleanup(t *testing.T) {
 }
 
 func TestThreadSafetyOfWriteOperationsWithAsyncCleanup(t *testing.T) {
-	ds := New()
+	ds := NewDataStore()
 
 	// Without mutexes on updates to the internal data store this test will crash
 	for i := 0; i < 1000; i++ {
@@ -517,7 +517,7 @@ func TestThreadSafetyOfWriteOperationsWithAsyncCleanup(t *testing.T) {
 }
 
 func TestTruncate(t *testing.T) {
-	ds := New()
+	ds := NewDataStore()
 
 	for i := 0; i < 100; i++ {
 		key := fmt.Sprintf("key%d", i)
@@ -533,5 +533,53 @@ func TestTruncate(t *testing.T) {
 	count = ds.Count()
 	if count != 0 {
 		t.Fatalf("Expected 0 items but found %d", count)
+	}
+}
+
+func TestFindingKeysByPrefix(t *testing.T) {
+	ds := NewDataStore()
+
+	data := "abc123"
+
+	key0 := "region:1:store:1:employee:1"
+	key1 := "region:1:store:1:employee:2"
+	key2 := "region:1:manager"
+	key3 := "region:1:store:2:employee:4"
+	key4 := "region:1:store:3:employee:2"
+	key5 := "region:1:store:1"
+	key6 := "region:2:store:4:employee:7"
+	key7 := "region:2:store:4:employee:8"
+	key8 := "region:2:store:5:employee:7"
+	key9 := "category:3:product:7"
+
+	_, _ = ds.Insert(key0, data)
+	_, _ = ds.Insert(key1, data)
+	_, _ = ds.Insert(key2, data)
+	_, _ = ds.Insert(key3, data)
+	_, _ = ds.Insert(key4, data)
+	_, _ = ds.Insert(key5, data)
+	_, _ = ds.Insert(key6, data)
+	_, _ = ds.Insert(key7, data)
+	_, _ = ds.Insert(key8, data)
+	_ = ds.Upsert(key9, data)
+
+	allKeys := ds.KeysBy("")
+	if len(allKeys) != 10 {
+		t.Fatalf("expected 10 keys but found %d: %q", len(allKeys), allKeys)
+	}
+
+	regionKeys := ds.KeysBy("region")
+	if len(regionKeys) != 9 {
+		t.Fatalf("expected 9 keys but found %d: %q", len(regionKeys), regionKeys)
+	}
+
+	store1Keys := ds.KeysBy("region:1:store:1")
+	if len(store1Keys) != 3 {
+		t.Fatalf("expected 3 keys but found %d: %q", len(store1Keys), store1Keys)
+	}
+
+	noKeys := ds.KeysBy("region:5")
+	if noKeys != nil {
+		t.Fatalf("expected no keys but found %d: %q", len(noKeys), noKeys)
 	}
 }

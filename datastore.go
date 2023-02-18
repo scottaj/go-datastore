@@ -8,13 +8,15 @@ import (
 type DataStore struct {
 	inMemoryStore      map[string]string
 	expirationTracker  map[string]time.Time
+	keyIndex           PrefixTrie
 	internalStoreMutex sync.Mutex
 }
 
-func New() DataStore {
+func NewDataStore() DataStore {
 	return DataStore{
 		inMemoryStore:     map[string]string{},
 		expirationTracker: map[string]time.Time{},
+		keyIndex:          NewPrefixTrie(),
 	}
 }
 
@@ -65,6 +67,7 @@ func (ds *DataStore) Insert(key string, value string) (string, bool) {
 	if !valueExists {
 		ds.internalStoreMutex.Lock()
 		ds.inMemoryStore[key] = value
+		ds.keyIndex.Add(key)
 		delete(ds.expirationTracker, key)
 		ds.internalStoreMutex.Unlock()
 		return value, true
@@ -107,6 +110,7 @@ func (ds *DataStore) Upsert(key string, value string) string {
 
 	ds.internalStoreMutex.Lock()
 	ds.inMemoryStore[key] = value
+	ds.keyIndex.Add(key)
 
 	if !valueExists {
 		delete(ds.expirationTracker, key)
@@ -191,4 +195,9 @@ func (ds *DataStore) cleanupExpirations() {
 		}
 	}
 	ds.internalStoreMutex.Unlock()
+}
+
+func (ds *DataStore) KeysBy(prefix string) []string {
+	indexedKeys := ds.keyIndex.Find(prefix)
+	return indexedKeys
 }
