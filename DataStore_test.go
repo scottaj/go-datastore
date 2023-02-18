@@ -552,16 +552,16 @@ func TestFindingKeysByPrefix(t *testing.T) {
 	key8 := "region:2:store:5:employee:7"
 	key9 := "category:3:product:7"
 
-	_, _ = ds.Insert(key0, data)
-	_, _ = ds.Insert(key1, data)
-	_, _ = ds.Insert(key2, data)
-	_, _ = ds.Insert(key3, data)
-	_, _ = ds.Insert(key4, data)
-	_, _ = ds.Insert(key5, data)
-	_, _ = ds.Insert(key6, data)
-	_, _ = ds.Insert(key7, data)
-	_, _ = ds.Insert(key8, data)
-	_ = ds.Upsert(key9, data)
+	ds.Insert(key0, data)
+	ds.Insert(key1, data)
+	ds.Insert(key2, data)
+	ds.Insert(key3, data)
+	ds.Insert(key4, data)
+	ds.Insert(key5, data)
+	ds.Insert(key6, data)
+	ds.Insert(key7, data)
+	ds.Insert(key8, data)
+	ds.Upsert(key9, data)
 
 	allKeys := ds.KeysBy("")
 	if len(allKeys) != 10 {
@@ -624,5 +624,57 @@ func TestPrefixSearchUpdatedOnExpire(t *testing.T) {
 	allKeys := ds.KeysBy("")
 	if len(allKeys) != 2 {
 		t.Fatalf("expected 2 keys but found %d: %q", len(allKeys), allKeys)
+	}
+}
+
+func TestDeletingKeysByPrefix(t *testing.T) {
+	ds := NewDataStore()
+
+	data := "abc123"
+
+	key0 := "region:1:store:1:employee:1"
+	key1 := "region:1:store:1:employee:2"
+	key2 := "region:1:manager"
+	key3 := "region:1:store:2:employee:4"
+	key4 := "region:1:store:3:employee:2"
+	key5 := "region:1:store:1"
+	key6 := "region:2:store:4:employee:7"
+	key7 := "region:2:store:4:employee:8"
+	key8 := "region:2:store:5:employee:7"
+	key9 := "category:3:product:7"
+
+	ds.Insert(key0, data)
+	ds.Insert(key1, data)
+	ds.Insert(key2, data)
+	ds.Insert(key3, data)
+	ds.Insert(key4, data)
+	ds.Insert(key5, data)
+	ds.Insert(key6, data)
+	ds.Insert(key7, data)
+	ds.Insert(key8, data)
+	ds.Upsert(key9, data)
+
+	deletedCount := ds.DeleteBy("region:5")
+	allKeys := ds.KeysBy("")
+	if deletedCount != 0 || len(allKeys) != 10 {
+		t.Fatalf("expected 10 keys left but found %d: %q", len(allKeys), allKeys)
+	}
+
+	deletedCount = ds.DeleteBy("region:1:store:1")
+	notStore1Keys := ds.KeysBy("")
+	if deletedCount != 3 || len(notStore1Keys) != 7 {
+		t.Fatalf("expected 7 keys left but found %d: %q", len(notStore1Keys), notStore1Keys)
+	}
+
+	deletedCount = ds.DeleteBy("region")
+	notRegionKeys := ds.KeysBy("")
+	if deletedCount != 6 || len(notRegionKeys) != 1 {
+		t.Fatalf("expected 1 left keys but found %d: %q", len(notRegionKeys), notRegionKeys)
+	}
+
+	deletedCount = ds.DeleteBy("")
+	noKeys := ds.KeysBy("")
+	if deletedCount != 1 || noKeys != nil {
+		t.Fatalf("expected no keys left but found %d: %q", len(noKeys), noKeys)
 	}
 }

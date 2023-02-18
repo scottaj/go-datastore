@@ -187,8 +187,8 @@ func (ds *DataStore) Expire(key string, expiration time.Time) bool {
 * Internally this is run async whenever a modification is made to the data store
  */
 func (ds *DataStore) cleanupExpirations() {
-	timestamp := time.Now()
 	ds.internalStoreMutex.Lock()
+	timestamp := time.Now()
 	for key, expiration := range ds.expirationTracker {
 		if expiration.Before(timestamp) {
 			delete(ds.expirationTracker, key)
@@ -200,6 +200,18 @@ func (ds *DataStore) cleanupExpirations() {
 }
 
 func (ds *DataStore) KeysBy(prefix string) []string {
-	indexedKeys := ds.keyIndex.Find(prefix)
-	return indexedKeys
+	return ds.keyIndex.Find(prefix)
+}
+
+func (ds *DataStore) DeleteBy(prefix string) int {
+	ds.internalStoreMutex.Lock()
+	keysToRemove := ds.keyIndex.Find(prefix)
+	ds.keyIndex.DeleteAll(prefix)
+	for _, key := range keysToRemove {
+		delete(ds.inMemoryStore, key)
+		delete(ds.expirationTracker, key)
+	}
+	ds.internalStoreMutex.Unlock()
+
+	return len(keysToRemove)
 }

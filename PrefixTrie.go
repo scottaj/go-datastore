@@ -66,6 +66,16 @@ func (t *PrefixTrie) Delete(key string) bool {
 	return anythingDeleted
 }
 
+func (t *PrefixTrie) DeleteAll(prefix string) bool {
+	deleteRoot, anythingDeleted := t.deleteBranch(&t.root, prefix)
+
+	if deleteRoot {
+		t.root.leaves = map[string]*trieNode{}
+	}
+
+	return anythingDeleted
+}
+
 // Find
 /**
 * Find all keys that start with the provided prefix
@@ -149,6 +159,27 @@ func (t *PrefixTrie) deleteKey(node *trieNode, key string) (bool, bool) {
 		if node.leaves == nil && !node.isKey {
 			return true, anythingDeleted
 		}
+		return false, anythingDeleted
+	}
+}
+
+func (t *PrefixTrie) deleteBranch(node *trieNode, prefix string) (bool, bool) {
+	anythingDeleted := false
+
+	if node == nil {
+		return false, false
+	} else if node.value == prefix {
+		return true, true
+	} else {
+		for _, childNode := range node.leaves {
+			deleteBranch, anythingDeletedHere := t.deleteBranch(childNode, prefix)
+			anythingDeleted = anythingDeleted || anythingDeletedHere
+			if deleteBranch {
+				delete(node.leaves, childNode.value)
+				break
+			}
+		}
+
 		return false, anythingDeleted
 	}
 }

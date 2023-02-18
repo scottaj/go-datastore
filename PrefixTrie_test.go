@@ -278,8 +278,6 @@ func TestDeletePrefixThatIsNotAKey(t *testing.T) {
 	}
 }
 
-// multi delete
-/*
 func TestDeleteAllLeafNode(t *testing.T) {
 	trie := NewPrefixTrie()
 
@@ -290,14 +288,27 @@ func TestDeleteAllLeafNode(t *testing.T) {
 	trie.Add(node2)
 	trie.Add(node3)
 
-	trie.DeleteAll("country:USA")
+	anythingDeleted := trie.DeleteAll("country:USA")
 
 	remainingLeaves := collectLeaves(&trie.root)
-	if len(remainingLeaves) != 1 || remainingLeaves[0].value != node2 {
+	if !anythingDeleted || len(remainingLeaves) != 1 || remainingLeaves[0].value != node2 {
 		t.Fatalf("Expected 1 node with value %q after delete but got %v", node2, remainingLeaves)
 	}
+
+	anythingDeleted = trie.DeleteAll("continent")
+
+	remainingLeaves = collectLeaves(&trie.root)
+	if anythingDeleted || len(remainingLeaves) != 1 || remainingLeaves[0].value != node2 {
+		t.Fatalf("Expected 1 node with value %q after delete but got %v", node2, remainingLeaves)
+	}
+
+	anythingDeleted = trie.DeleteAll("")
+
+	remainingLeaves = collectLeaves(&trie.root)
+	if !anythingDeleted || remainingLeaves != nil {
+		t.Fatalf("Expected no nodes after delete but got %v", remainingLeaves)
+	}
 }
-*/
 
 func collectLeaves(node *trieNode) []trieNode {
 	var leaves []trieNode
