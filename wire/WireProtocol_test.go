@@ -87,7 +87,7 @@ func TestDecodeRead(t *testing.T) {
 	}
 
 	commandBytes, _ = protocol.EncodeCommand(READ, keyParam)
-	// this doesn't work to \just remove a byte from the slice https://stackoverflow.com/a/63362043
+	// this doesn't work to just remove a byte from the slice https://stackoverflow.com/a/63362043
 	//commandBytes = commandBytes[0 : len(commandBytes)-1]
 	modifiedBytes := [18]byte{}
 	for i := 0; i < len(commandBytes)-1; i++ {

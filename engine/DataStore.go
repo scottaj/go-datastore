@@ -211,8 +211,8 @@ func (ds *DataStore) KeysBy(prefix string) []string {
 * The same restrictions as to what constitute matching a key as described in KeysBy apply to this method
  */
 func (ds *DataStore) DeleteBy(prefix string) int {
-	ds.internalStoreMutex.Lock()
 	keysToRemove := ds.KeysBy(prefix)
+	ds.internalStoreMutex.Lock()
 	ds.keyIndex.DeleteAll(prefix)
 	for _, key := range keysToRemove {
 		delete(ds.inMemoryStore, key)
