@@ -1,9 +1,12 @@
 package server
 
 import (
+	"bufio"
 	"datastore/engine"
 	"datastore/wire"
+	"encoding/binary"
 	"fmt"
+	"io"
 	"net"
 )
 
@@ -65,10 +68,16 @@ func (s *Server) handleConnection(connection net.Conn) {
 		}
 	}(connection)
 
-	// TODO can use the message size at the front of the message to properly size this
-	buffer := make([]byte, 1024)
-	// Read the incoming connection into the buffer.
-	_, err := connection.Read(buffer)
+	// https://stackoverflow.com/a/47585913
+	connectionBuffer := bufio.NewReader(connection)
+	messageSizeBytes, err := connectionBuffer.ReadBytes(0x7C)
+	if err != nil || len(messageSizeBytes) != 5 {
+		fmt.Println("Error error parsing message size:", err.Error())
+		return
+	}
+	messageSize := binary.LittleEndian.Uint32(messageSizeBytes[:4])
+	buffer := make([]byte, messageSize)
+	_, err = io.ReadFull(connectionBuffer, buffer)
 	if err != nil {
 		fmt.Println("Error reading request:", err.Error())
 		return
