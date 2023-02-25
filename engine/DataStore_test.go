@@ -12,12 +12,12 @@ func TestInsertAndRead(t *testing.T) {
 
 	data := "abc123"
 	key := "testkey"
-	setValue, success := ds.Insert(key, data)
-	if setValue != data || success == false {
-		t.Fatalf("failed to insert key %q, expected %q to equal %q", key, setValue, data)
+	success := ds.Insert(key, data)
+	if success == false {
+		t.Fatalf("failed to insert key %q", key)
 	}
 
-	readValue, _, present := ds.Read(key)
+	readValue, present := ds.Read(key)
 	if readValue != data || present == false {
 		t.Fatalf("failed to read value %q from key %q got %q", data, key, readValue)
 	}
@@ -28,14 +28,15 @@ func TestInsertDuplicate(t *testing.T) {
 
 	data := "abc123"
 	key := "testkey"
-	setValue, success := ds.Insert(key, data)
-	if setValue != data || success == false {
+	success := ds.Insert(key, data)
+	if success == false {
 		t.Fatalf("failed to insert key %q", key)
 	}
 
 	updatedData := "def456"
-	setValue, success = ds.Insert(key, updatedData)
-	if setValue != data || success == true {
+	success = ds.Insert(key, updatedData)
+	setValue, _ := ds.Read(key)
+	if success == true {
 		t.Fatalf("expected data %q not to be overwritten but is now %q", data, setValue)
 	}
 }
@@ -43,7 +44,7 @@ func TestInsertDuplicate(t *testing.T) {
 func TestReadAbsent(t *testing.T) {
 	ds := NewDataStore()
 
-	value, _, present := ds.Read("def456")
+	value, present := ds.Read("def456")
 	if value != "" || present == true {
 		t.Fatalf("expected no value but found %q", value)
 	}
@@ -54,14 +55,35 @@ func TestReadEmptyString(t *testing.T) {
 
 	data := ""
 	key := "testkey"
-	setValue, success := ds.Insert(key, data)
-	if setValue != data || success == false {
-		t.Fatalf("failed to insert key %q, expected %q to equal %q", key, setValue, data)
+	success := ds.Insert(key, data)
+	if success == false {
+		t.Fatalf("failed to insert key %q", key)
 	}
 
-	readValue, _, present := ds.Read(key)
+	readValue, present := ds.Read(key)
 	if readValue != data || present == false {
 		t.Fatalf("failed to read value %q from key %q got %q", data, key, readValue)
+	}
+}
+
+func TestReadExpiration(t *testing.T) {
+	ds := NewDataStore()
+
+	data := ""
+	key := "testkey"
+	ds.Insert(key, data)
+
+	readExpiration, present := ds.ReadExpiration(key)
+	if present {
+		t.Fatalf("expected no expiration but found %q", readExpiration)
+	}
+
+	expireTime := time.Now().Add(time.Second * 10)
+	ds.Expire(key, expireTime)
+
+	readExpiration, present = ds.ReadExpiration(key)
+	if !present || readExpiration != expireTime {
+		t.Fatalf("expected key %q to have expiration %q", key, readExpiration)
 	}
 }
 
@@ -70,16 +92,16 @@ func TestUpdateExistingValueAndRead(t *testing.T) {
 
 	data := "abc123"
 	key := "testkey"
-	_, _ = ds.Insert(key, data)
+	_ = ds.Insert(key, data)
 
 	updatedData := "def456"
-	value, success := ds.Update(key, updatedData)
+	success := ds.Update(key, updatedData)
 
-	if value != updatedData || success == false {
-		t.Fatalf("expected value for key %q to be updated to %q but was %q", key, updatedData, value)
+	if success == false {
+		t.Fatalf("expected value for key %q to be updated", key)
 	}
 
-	readValue, _, _ := ds.Read(key)
+	readValue, _ := ds.Read(key)
 	if readValue != updatedData {
 		t.Fatalf("expected to read updated value %q but was %q", updatedData, readValue)
 	}
@@ -91,13 +113,13 @@ func TestUpdateAbsentValueAndRead(t *testing.T) {
 	key := "testkey"
 
 	updatedData := "def456"
-	value, success := ds.Update(key, updatedData)
+	success := ds.Update(key, updatedData)
 
-	if value == updatedData || success == true {
-		t.Fatalf("expected update not to work but got value %q", value)
+	if success == true {
+		t.Fatalf("expected update not to work")
 	}
 
-	readValue, _, present := ds.Read(key)
+	readValue, present := ds.Read(key)
 	if readValue == updatedData || present == true {
 		t.Fatalf("expected update not to work but read value %q", readValue)
 	}
@@ -113,7 +135,7 @@ func TestUpsertNewValueAndUpdateIt(t *testing.T) {
 	if value != data {
 		t.Fatalf("expected upsert to insert new data %q", value)
 	}
-	readValue, _, present := ds.Read(key)
+	readValue, present := ds.Read(key)
 	if readValue != data || present == false {
 		t.Fatalf("expected update to work but read value %q", readValue)
 	}
@@ -124,7 +146,7 @@ func TestUpsertNewValueAndUpdateIt(t *testing.T) {
 		t.Fatalf("expected upsert to update existing data %q", value)
 	}
 
-	readValue, _, present = ds.Read(key)
+	readValue, present = ds.Read(key)
 	if readValue != updatedData || present == false {
 		t.Fatalf("expected update to work but read value %q", readValue)
 	}
@@ -144,7 +166,7 @@ func TestDeleteExistingValue(t *testing.T) {
 		t.Fatalf("failed to delete key %q", key)
 	}
 
-	_, _, present = ds.Read(key)
+	_, present = ds.Read(key)
 	if present == true {
 		t.Fatalf("Expected key %q to be deleted but was able to read it", key)
 	}
@@ -161,7 +183,7 @@ func TestDeleteAbsentValue(t *testing.T) {
 		t.Fatalf("deleted key %q that should not have been present", key)
 	}
 
-	_, _, present = ds.Read(key)
+	_, present = ds.Read(key)
 	if present == true {
 		t.Fatalf("Expected key %q to be deleted but was able to read it", key)
 	}
@@ -178,9 +200,9 @@ func TestInsertAndPresent(t *testing.T) {
 		t.Fatalf("expected key %q not to exist but it did", key)
 	}
 
-	setValue, success := ds.Insert(key, data)
-	if setValue != data || success == false {
-		t.Fatalf("failed to insert key %q, expected %q to equal %q", key, setValue, data)
+	success := ds.Insert(key, data)
+	if success == false {
+		t.Fatalf("failed to insert key %q", key)
 	}
 
 	present = ds.Present(key)
@@ -197,31 +219,31 @@ func TestCount(t *testing.T) {
 		t.Fatalf("expected count 0 but was %q", count)
 	}
 
-	_, _ = ds.Insert("a", "1")
+	ds.Insert("a", "1")
 	count = ds.Count()
 	if count != 1 {
 		t.Fatalf("expected count 1 but was %q", count)
 	}
 
-	_, _ = ds.Insert("a", "1")
+	ds.Insert("a", "1")
 	count = ds.Count()
 	if count != 1 {
 		t.Fatalf("expected count 1 but was %q", count)
 	}
 
-	_, _ = ds.Insert("b", "2")
+	ds.Insert("b", "2")
 	count = ds.Count()
 	if count != 2 {
 		t.Fatalf("expected count 2 but was %q", count)
 	}
 
-	_, _ = ds.Update("a", "3")
+	ds.Update("a", "3")
 	count = ds.Count()
 	if count != 2 {
 		t.Fatalf("expected count 2 but was %q", count)
 	}
 
-	_ = ds.Delete("a")
+	ds.Delete("a")
 	count = ds.Count()
 	if count != 1 {
 		t.Fatalf("expected count 1 but was %q", count)
@@ -233,7 +255,7 @@ func TestReadExpiredValue(t *testing.T) {
 
 	data := "abc123"
 	key := "testkey"
-	_, _ = ds.Insert(key, data)
+	ds.Insert(key, data)
 
 	expiration := time.Now().Add(time.Millisecond * 100).UTC()
 	success := ds.Expire(key, expiration)
@@ -241,14 +263,14 @@ func TestReadExpiredValue(t *testing.T) {
 		t.Fatalf("Failed to set expiration %q for key %q", expiration, key)
 	}
 
-	readValue, readExperation, present := ds.Read(key)
-	if readValue != data || readExperation != expiration || present == false {
-		t.Fatalf("failed to read value %q with expiration %q from key %q got %q with expiration %q", data, expiration, key, readValue, readExperation)
+	readValue, present := ds.Read(key)
+	if readValue != data || present == false {
+		t.Fatalf("failed to read value %q with expiration %q from key %q got %q", data, expiration, key, readValue)
 	}
 
 	time.Sleep(time.Millisecond * 100)
 
-	_, _, present = ds.Read(key)
+	_, present = ds.Read(key)
 	if present == true {
 		t.Fatalf("expected to not find expired value for key %q", key)
 	}
@@ -268,21 +290,23 @@ func TestInsertExpiredKeyRemovesExpiration(t *testing.T) {
 
 	data := "abc123"
 	key := "testkey"
-	_, _ = ds.Insert(key, data)
+	ds.Insert(key, data)
 
 	expiration := time.Now().Add(time.Millisecond * 100).UTC()
 	_ = ds.Expire(key, expiration)
 
 	time.Sleep(time.Millisecond * 100)
 
-	_, _, present := ds.Read(key)
+	_, present := ds.Read(key)
 	if present == true {
 		t.Fatalf("expected to not find expired value for key %q", key)
 	}
 
 	newData := "def456"
-	_, _ = ds.Insert(key, newData)
-	readValue, readExpiration, present := ds.Read(key)
+	ds.Insert(key, newData)
+	// TODO ReadExpired
+	readValue, present := ds.Read(key)
+	readExpiration, _ := ds.ReadExpiration(key)
 	if readValue != newData || !readExpiration.IsZero() || present == false {
 		t.Fatalf("expected to find value %q for key %q with no expiration, but it had value %q with expiration %q", newData, key, readValue, readExpiration)
 	}
@@ -300,14 +324,15 @@ func TestUpsertExpiredKeyRemovesExpiration(t *testing.T) {
 
 	time.Sleep(time.Millisecond * 100)
 
-	_, _, present := ds.Read(key)
+	present := ds.Present(key)
 	if present == true {
 		t.Fatalf("expected to not find expired value for key %q", key)
 	}
 
 	newData := "def456"
 	_ = ds.Upsert(key, newData)
-	readValue, readExpiration, present := ds.Read(key)
+	readValue, present := ds.Read(key)
+	readExpiration, _ := ds.ReadExpiration(key)
 	if readValue != newData || !readExpiration.IsZero() || present == false {
 		t.Fatalf("expected to find value %q for key %q with no expiration, but it had value %q with expiration %q", newData, key, readValue, readExpiration)
 	}
@@ -318,7 +343,7 @@ func TestDeleteKeyWithExpirationThenRecreateItRemovesExpiration(t *testing.T) {
 
 	data := "abc123"
 	key := "testkey"
-	_, _ = ds.Insert(key, data)
+	ds.Insert(key, data)
 
 	expiration := time.Now().Add(time.Millisecond * 100).UTC()
 	_ = ds.Expire(key, expiration)
@@ -326,11 +351,12 @@ func TestDeleteKeyWithExpirationThenRecreateItRemovesExpiration(t *testing.T) {
 	_ = ds.Delete(key)
 
 	newData := "def456"
-	_, _ = ds.Insert(key, newData)
+	ds.Insert(key, newData)
 
 	time.Sleep(time.Millisecond * 100)
 
-	readValue, readExpiration, present := ds.Read(key)
+	readValue, present := ds.Read(key)
+	readExpiration, _ := ds.ReadExpiration(key)
 	if readValue != newData || !readExpiration.IsZero() || present == false {
 		t.Fatalf("expected to find value %q for key %q with no expiration, but it had value %q with expiration %q", newData, key, readValue, readExpiration)
 	}
@@ -344,15 +370,15 @@ func TestInsertTriggersAsyncExpirationCleanup(t *testing.T) {
 	key3, data3 := "key3", "def123"
 	key4, data4 := "key4", "def456"
 
-	_, _ = ds.Insert(key1, data1)
-	_, _ = ds.Insert(key2, data2)
-	_, _ = ds.Insert(key3, data3)
+	ds.Insert(key1, data1)
+	ds.Insert(key2, data2)
+	ds.Insert(key3, data3)
 
 	expiration := time.Now().Add(time.Millisecond * 100)
 
-	_ = ds.Expire(key1, expiration)
-	_ = ds.Expire(key2, expiration)
-	_ = ds.Expire(key3, expiration)
+	ds.Expire(key1, expiration)
+	ds.Expire(key2, expiration)
+	ds.Expire(key3, expiration)
 
 	time.Sleep(time.Millisecond * 100)
 
@@ -361,7 +387,7 @@ func TestInsertTriggersAsyncExpirationCleanup(t *testing.T) {
 		t.Fatalf("expected count to be 3 because there was no write to cleanup but was %d", count)
 	}
 
-	_, _ = ds.Insert(key4, data4)
+	ds.Insert(key4, data4)
 
 	time.Sleep(time.Millisecond * 10)
 
@@ -378,14 +404,14 @@ func TestUpdateTriggersAsyncExpirationCleanup(t *testing.T) {
 	key2, data2 := "key2", "abc456"
 	key3, data3 := "key3", "def123"
 
-	_, _ = ds.Insert(key1, data1)
-	_, _ = ds.Insert(key2, data2)
-	_, _ = ds.Insert(key3, data3)
+	ds.Insert(key1, data1)
+	ds.Insert(key2, data2)
+	ds.Insert(key3, data3)
 
 	expiration := time.Now().Add(time.Millisecond * 100)
 
-	_ = ds.Expire(key1, expiration)
-	_ = ds.Expire(key2, expiration)
+	ds.Expire(key1, expiration)
+	ds.Expire(key2, expiration)
 
 	time.Sleep(time.Millisecond * 100)
 
@@ -394,7 +420,7 @@ func TestUpdateTriggersAsyncExpirationCleanup(t *testing.T) {
 		t.Fatalf("expected count to be 3 because there was no write to cleanup but was %d", count)
 	}
 
-	_, _ = ds.Update(key3, data1)
+	ds.Update(key3, data1)
 
 	time.Sleep(time.Millisecond * 10)
 
@@ -412,15 +438,15 @@ func TestUpsertTriggersAsyncExpirationCleanup(t *testing.T) {
 	key3, data3 := "key3", "def123"
 	key4, data4 := "key4", "def456"
 
-	_, _ = ds.Insert(key1, data1)
-	_, _ = ds.Insert(key2, data2)
-	_, _ = ds.Insert(key3, data3)
+	ds.Insert(key1, data1)
+	ds.Insert(key2, data2)
+	ds.Insert(key3, data3)
 
 	expiration := time.Now().Add(time.Millisecond * 100)
 
-	_ = ds.Expire(key1, expiration)
-	_ = ds.Expire(key2, expiration)
-	_ = ds.Expire(key3, expiration)
+	ds.Expire(key1, expiration)
+	ds.Expire(key2, expiration)
+	ds.Expire(key3, expiration)
 
 	time.Sleep(time.Millisecond * 100)
 
@@ -429,7 +455,7 @@ func TestUpsertTriggersAsyncExpirationCleanup(t *testing.T) {
 		t.Fatalf("expected count to be 3 because there was no write to cleanup but was %d", count)
 	}
 
-	_ = ds.Upsert(key4, data4)
+	ds.Upsert(key4, data4)
 
 	time.Sleep(time.Millisecond * 10)
 
@@ -447,16 +473,16 @@ func TestDeleteTriggersAsyncExpirationCleanup(t *testing.T) {
 	key3, data3 := "key3", "def123"
 	key4, data4 := "key4", "def456"
 
-	_, _ = ds.Insert(key1, data1)
-	_, _ = ds.Insert(key2, data2)
-	_, _ = ds.Insert(key3, data3)
-	_, _ = ds.Insert(key4, data4)
+	ds.Insert(key1, data1)
+	ds.Insert(key2, data2)
+	ds.Insert(key3, data3)
+	ds.Insert(key4, data4)
 
 	expiration := time.Now().Add(time.Millisecond * 100)
 
-	_ = ds.Expire(key1, expiration)
-	_ = ds.Expire(key2, expiration)
-	_ = ds.Expire(key3, expiration)
+	ds.Expire(key1, expiration)
+	ds.Expire(key2, expiration)
+	ds.Expire(key3, expiration)
 
 	time.Sleep(time.Millisecond * 100)
 
@@ -465,7 +491,7 @@ func TestDeleteTriggersAsyncExpirationCleanup(t *testing.T) {
 		t.Fatalf("expected count to be 4 because there was no write to cleanup but was %d", count)
 	}
 
-	_ = ds.Delete(key4)
+	ds.Delete(key4)
 
 	time.Sleep(time.Millisecond * 10)
 
@@ -483,16 +509,16 @@ func TestThreadSafetyOfWriteOperationsWithAsyncCleanup(t *testing.T) {
 		if i%4 == 0 {
 			// ds.Insert with expiration
 			key := fmt.Sprintf("key%d", i)
-			_, _ = ds.Insert(key, "abc123")
+			ds.Insert(key, "abc123")
 			_ = ds.Expire(key, time.Now())
 		} else if i%4 == 1 {
 			// insert without expiration
 			key := fmt.Sprintf("key%d", i)
-			_, _ = ds.Insert(key, "abc123")
+			ds.Insert(key, "abc123")
 		} else if i%4 == 2 {
 			// update inserted value from last clause
 			key := fmt.Sprintf("key%d", i-1)
-			_, _ = ds.Update(key, "def456")
+			ds.Update(key, "def456")
 		} else if i%4 == 3 {
 			// 33/33/33 of delete the updated value or upsert to update it with an expiration or upsert a new value
 			// without an expiration
@@ -521,7 +547,7 @@ func TestTruncate(t *testing.T) {
 
 	for i := 0; i < 100; i++ {
 		key := fmt.Sprintf("key%d", i)
-		_, _ = ds.Insert(key, "abc123")
+		ds.Insert(key, "abc123")
 	}
 
 	count := ds.Count()

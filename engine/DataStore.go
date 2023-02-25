@@ -29,19 +29,38 @@ func NewDataStore() DataStore {
 * Read a value from the data store that has the provided key
 *
 * Returns the value of the key if it was present and the empty string "" if it was not.
-* If the key was present returns the expiration time of the key or the empty time (epoch) if there is no expiration
-* To clarify cases where the empty string could be the actual value,also returns a bool indicating if the key was
+* To clarify cases where the empty string could be the actual value, also returns a bool indicating if the key was
 * present when reading
  */
-func (ds *DataStore) Read(key string) (string, time.Time, bool) {
+func (ds *DataStore) Read(key string) (string, bool) {
 	ds.internalStoreMutex.Lock()
 	readValue, present := ds.inMemoryStore[key]
 	ds.internalStoreMutex.Unlock()
 
 	if readValue.hasExpiration && readValue.expiration.Before(time.Now()) {
-		return "", time.Time{}, false
+		return "", false
 	}
-	return readValue.value, readValue.expiration, present
+	return readValue.value, present
+}
+
+// ReadExpiration
+/*
+* Read an expiration from the data store that has the provided key
+*
+* Returns the expiration of the key if it was present and the and empty time value if it was not.
+* If the key was present returns the expiration time of the key or the empty time (epoch) if there is no expiration
+* To clarify cases where the empty time could be the actual value, also returns a bool indicating if the key was
+* had an expiration set when reading
+ */
+func (ds *DataStore) ReadExpiration(key string) (time.Time, bool) {
+	ds.internalStoreMutex.Lock()
+	readValue, present := ds.inMemoryStore[key]
+	ds.internalStoreMutex.Unlock()
+
+	if !present || readValue.hasExpiration && readValue.expiration.Before(time.Now()) {
+		return time.Time{}, false
+	}
+	return readValue.expiration, readValue.hasExpiration
 }
 
 // Present
@@ -51,31 +70,31 @@ func (ds *DataStore) Read(key string) (string, time.Time, bool) {
 * returns a boolean indicating if the key was present or not
  */
 func (ds *DataStore) Present(key string) bool {
-	_, _, present := ds.Read(key)
+	_, present := ds.Read(key)
 	return present
 }
 
 // Insert
 /*
-* Insert the provided value into the data stroe under the provided key
+* Insert the provided value into the data store under the provided key
 *
 * Will not overwrite an existing value if the key already exists.
 *
 * returns the value of the key in the data store and a boolean indicating if the new value was inserted. If the new
 * value was not inserted because the key already existed this will return the current value of the key.
  */
-func (ds *DataStore) Insert(key string, value string) (string, bool) {
+func (ds *DataStore) Insert(key string, value string) bool {
 	go ds.cleanupExpirations()
-	existingValue, _, valueExists := ds.Read(key)
+	valueExists := ds.Present(key)
 	if !valueExists {
 		ds.internalStoreMutex.Lock()
 		ds.inMemoryStore[key] = dataNode{value: value}
 		ds.keyIndex.Add(key)
 		ds.internalStoreMutex.Unlock()
-		return value, true
+		return true
 	}
 
-	return existingValue, false
+	return false
 }
 
 // Update
@@ -87,17 +106,17 @@ func (ds *DataStore) Insert(key string, value string) (string, bool) {
 * Returns the new value of the key and a boolean indicating if the update was successful. If the update was not
 * successful it returns the empty string "" for the value.
  */
-func (ds *DataStore) Update(key string, value string) (string, bool) {
+func (ds *DataStore) Update(key string, value string) bool {
 	go ds.cleanupExpirations()
 	valueExists := ds.Present(key)
 	if valueExists {
 		ds.internalStoreMutex.Lock()
 		ds.inMemoryStore[key] = dataNode{value: value}
 		ds.internalStoreMutex.Unlock()
-		return value, true
+		return true
 	}
 
-	return "", false
+	return false
 }
 
 // Upsert
