@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"time"
 )
 
 type Server struct {
@@ -19,6 +20,17 @@ type Server struct {
 	dataStore engine.DataStore
 }
 
+func New(address string, port int) Server {
+	return Server{
+		address:   address,
+		port:      port,
+		started:   false,
+		stopped:   true,
+		wire:      wire.Protocol{},
+		dataStore: engine.NewDataStore(),
+	}
+}
+
 func (s *Server) Start() error {
 	listener, err := net.Listen("tcp", fmt.Sprintf("%s:%d", s.address, s.port))
 	if err != nil {
@@ -27,16 +39,37 @@ func (s *Server) Start() error {
 	}
 
 	s.started = true
+	s.stopped = false
 	fmt.Printf("Server listenting on %s:%d...\n", s.address, s.port)
 	go s.listenForConnections(listener)
 	return nil
 }
 
-func (s *Server) Stop() {
+func (s *Server) Stop() error {
 	s.started = false
+
+	if !s.stopped {
+		// send a message to trigger shutdown
+		connection, err := net.Dial("tcp", fmt.Sprintf("%s:%d", s.address, s.port))
+		if err != nil {
+			return err
+		}
+		defer connection.Close()
+		err = connection.SetDeadline(time.Now().Add(time.Second * 60))
+		if err != nil {
+			return err
+		}
+
+		_, err = connection.Write([]byte{})
+		if err != nil {
+			return err
+		}
+	}
 
 	for !s.stopped {
 	}
+
+	return nil
 }
 
 func (s *Server) listenForConnections(listener net.Listener) {
@@ -49,8 +82,13 @@ func (s *Server) listenForConnections(listener net.Listener) {
 		}
 	}(listener)
 
-	for s.started {
+	for {
 		connection, err := listener.Accept()
+		connection.SetDeadline(time.Now().Add(time.Second * 10))
+
+		if !s.started {
+			break
+		}
 
 		if err != nil {
 			fmt.Printf("Error on connection: %s\n", err.Error())
@@ -70,22 +108,27 @@ func (s *Server) handleConnection(connection net.Conn) {
 
 	// https://stackoverflow.com/a/47585913
 	connectionBuffer := bufio.NewReader(connection)
-	messageSizeBytes, err := connectionBuffer.ReadBytes(0x7C)
-	if err != nil || len(messageSizeBytes) != 5 {
-		fmt.Println("Error error parsing message size:", err.Error())
+	messageSizeBytes, err := connectionBuffer.Peek(4)
+	if err != nil {
+		s.sendErrorResponse(connection, err)
 		return
 	}
+	if len(messageSizeBytes) != 4 {
+		s.sendErrorResponse(connection, err)
+		return
+	}
+
 	messageSize := binary.LittleEndian.Uint32(messageSizeBytes[:4])
 	buffer := make([]byte, messageSize)
 	_, err = io.ReadFull(connectionBuffer, buffer)
 	if err != nil {
-		fmt.Println("Error reading request:", err.Error())
+		s.sendErrorResponse(connection, err)
 		return
 	}
 
 	command, err := s.wire.DecipherCommand(buffer)
 	if err != nil {
-		fmt.Println("Error parsing command:", err.Error())
+		s.sendErrorResponse(connection, err)
 		return
 	}
 
@@ -94,10 +137,19 @@ func (s *Server) handleConnection(connection net.Conn) {
 	case wire.READ:
 		key, err := s.wire.DecodeRead(buffer)
 		if err != nil {
-			fmt.Println("Error decoding command:", err.Error())
+			s.sendErrorResponse(connection, err)
 			return
 		}
-		response = s.wire.EncodeRead(s.dataStore.Read(key))
+
+		response = s.wire.EncodeReadResponse(s.dataStore.Read(key))
+	case wire.INSERT:
+		key, value, err := s.wire.DecodeInsert(buffer)
+		if err != nil {
+			s.sendErrorResponse(connection, err)
+			return
+		}
+
+		response = s.wire.EncodeInsertResponse(s.dataStore.Insert(key, value))
 	}
 
 	_, err = connection.Write(response)
@@ -105,4 +157,9 @@ func (s *Server) handleConnection(connection net.Conn) {
 		fmt.Println("Error writing response:", err.Error())
 		return
 	}
+}
+
+func (s *Server) sendErrorResponse(connection net.Conn, err error) {
+	_, writeErr := connection.Write(s.wire.EncodeErrResponse(err))
+	fmt.Println(writeErr.Error())
 }

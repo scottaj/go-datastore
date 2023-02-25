@@ -5,12 +5,12 @@ import "testing"
 func TestEncodeCommand(t *testing.T) {
 	protocol := Protocol{}
 
-	commandBytes, err := protocol.EncodeCommand(READ, "")
+	commandBytes, err := protocol.EncodeMessage(READ, "")
 	if err != nil || len(commandBytes) != 15 {
 		t.Fatalf("Expected a 16 byte command but got %v (%s): %q", commandBytes, commandBytes, err)
 	}
 
-	commandBytes, err = protocol.EncodeCommand(READ, "key1")
+	commandBytes, err = protocol.EncodeMessage(READ, "key1")
 	if err != nil || len(commandBytes) != 19 {
 		t.Fatalf("Expected a 20 byte command but got %v (%s): %q", commandBytes, commandBytes, err)
 	}
@@ -19,19 +19,19 @@ func TestEncodeCommand(t *testing.T) {
 func TestDecipherCommand(t *testing.T) {
 	protocol := Protocol{}
 
-	message, _ := protocol.EncodeCommand(READ, "my:test:key")
+	message, _ := protocol.EncodeMessage(READ, "my:test:key")
 	command, err := protocol.DecipherCommand(message)
 	if err != nil || command != READ {
 		t.Fatalf("Expected to parse a read command but got %q: %q", command, err)
 	}
 
-	message, _ = protocol.EncodeCommand(INSERT, "my:test:key", "abc123")
+	message, _ = protocol.EncodeMessage(INSERT, "my:test:key", "abc123")
 	command, err = protocol.DecipherCommand(message)
 	if err != nil || command != INSERT {
 		t.Fatalf("Expected to parse an insert command but got %q: %q", command, err)
 	}
 
-	message, _ = protocol.EncodeCommand("NOTACOMMAND", "my:test:key", "abc123")
+	message, _ = protocol.EncodeMessage("NOTACOMMAND", "my:test:key", "abc123")
 	command, err = protocol.DecipherCommand(message)
 	if err == nil {
 		t.Fatalf("Expected an error parsing the command but got %q: %q", command, err)
@@ -51,42 +51,42 @@ func TestDecipherCommand(t *testing.T) {
 func TestDecodeRead(t *testing.T) {
 	protocol := Protocol{}
 	keyParam := "key1"
-	commandBytes, _ := protocol.EncodeCommand(READ, keyParam)
+	commandBytes, _ := protocol.EncodeMessage(READ, keyParam)
 
 	readArg, err := protocol.DecodeRead(commandBytes)
 	if err != nil || readArg != keyParam {
 		t.Fatalf("Expected to read an argument %q back but was %q: %q", keyParam, readArg, err)
 	}
 
-	commandBytes, _ = protocol.EncodeCommand(READ, "")
+	commandBytes, _ = protocol.EncodeMessage(READ, "")
 
 	readArg, err = protocol.DecodeRead(commandBytes)
 	if err != nil || readArg != "" {
 		t.Fatalf("Expected to read an argument %q back but was %q: %q", "", readArg, err)
 	}
 
-	commandBytes, _ = protocol.EncodeCommand(READ, keyParam, "invalid")
+	commandBytes, _ = protocol.EncodeMessage(READ, keyParam, "invalid")
 
 	readArg, err = protocol.DecodeRead(commandBytes)
 	if err == nil {
 		t.Fatalf("Expected an error")
 	}
 
-	commandBytes, _ = protocol.EncodeCommand(READ, keyParam)
+	commandBytes, _ = protocol.EncodeMessage(READ, keyParam)
 	commandBytes = append(commandBytes, 0x7C)
 	readArg, err = protocol.DecodeRead(commandBytes)
 	if err == nil {
 		t.Fatalf("Expected an error")
 	}
 
-	commandBytes, _ = protocol.EncodeCommand(READ, keyParam)
+	commandBytes, _ = protocol.EncodeMessage(READ, keyParam)
 	commandBytes = append(commandBytes, 0x46)
 	readArg, err = protocol.DecodeRead(commandBytes)
 	if err == nil {
 		t.Fatalf("Expected an error")
 	}
 
-	commandBytes, _ = protocol.EncodeCommand(READ, keyParam)
+	commandBytes, _ = protocol.EncodeMessage(READ, keyParam)
 	// this doesn't work to just remove a byte from the slice https://stackoverflow.com/a/63362043
 	//commandBytes = commandBytes[0 : len(commandBytes)-1]
 	modifiedBytes := [18]byte{}
