@@ -50,7 +50,7 @@ func (c *Client) Read(key string) (string, bool, error) {
 
 		return value, true, nil
 	default:
-		return "", false, errors.New("invalid response for READ command")
+		return "", false, errors.New(fmt.Sprintf("invalid response for READ command %q", responseCommand))
 	}
 }
 
@@ -74,7 +74,7 @@ func (c *Client) Insert(key string, value string) (bool, error) {
 	case wire.ACK:
 		return true, nil
 	default:
-		return false, errors.New("invalid response for INSERT command")
+		return false, errors.New(fmt.Sprintf("invalid response for INSERT command %q", responseCommand))
 	}
 }
 
