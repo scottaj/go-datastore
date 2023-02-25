@@ -46,6 +46,7 @@ func (s *Server) Start() error {
 }
 
 func (s *Server) Stop() error {
+	println("Stopping server")
 	s.started = false
 
 	if !s.stopped {
