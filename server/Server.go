@@ -5,6 +5,7 @@ import (
 	"datastore/engine"
 	"datastore/wire"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -120,14 +121,14 @@ func (s *Server) handleConnection(connection net.Conn) {
 	}
 
 	messageSize := binary.LittleEndian.Uint32(messageSizeBytes[:4])
-	buffer := make([]byte, messageSize)
-	_, err = io.ReadFull(connectionBuffer, buffer)
+	message := make([]byte, messageSize)
+	_, err = io.ReadFull(connectionBuffer, message)
 	if err != nil {
 		s.sendErrorResponse(connection, err)
 		return
 	}
 
-	command, err := s.wire.DecipherCommand(buffer)
+	command, err := s.wire.DecipherCommand(message)
 	if err != nil {
 		s.sendErrorResponse(connection, err)
 		return
@@ -136,7 +137,7 @@ func (s *Server) handleConnection(connection net.Conn) {
 	var response []byte
 	switch command {
 	case wire.READ:
-		key, err := s.wire.DecodeRead(buffer)
+		key, err := s.wire.DecodeRead(message)
 		if err != nil {
 			s.sendErrorResponse(connection, err)
 			return
@@ -144,13 +145,31 @@ func (s *Server) handleConnection(connection net.Conn) {
 
 		response = s.wire.EncodeReadResponse(s.dataStore.Read(key))
 	case wire.INSERT:
-		key, value, err := s.wire.DecodeInsert(buffer)
+		key, value, err := s.wire.DecodeInsert(message)
 		if err != nil {
 			s.sendErrorResponse(connection, err)
 			return
 		}
 
 		response = s.wire.EncodeInsertResponse(s.dataStore.Insert(key, value))
+	case wire.READEXPIRATION:
+		key, err := s.wire.DecodeReadExpiration(message)
+		if err != nil {
+			s.sendErrorResponse(connection, err)
+			return
+		}
+
+		response = s.wire.EncodeReadExpiationResponse(s.dataStore.ReadExpiration(key))
+	case wire.EXPIRE:
+		key, expiration, err := s.wire.DecodeExpire(message)
+		if err != nil {
+			s.sendErrorResponse(connection, err)
+			return
+		}
+
+		response = s.wire.EncodeExpireResponse(s.dataStore.Expire(key, expiration))
+	default:
+		response = s.wire.EncodeErrResponse(errors.New(fmt.Sprintf("Unknown command %q for message %v", command, message)))
 	}
 
 	_, err = connection.Write(response)
