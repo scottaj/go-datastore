@@ -319,3 +319,25 @@ func (p *Protocol) EncodeExpireResponse(expirationSet bool) []byte {
 		return p.EncodeNullResponse()
 	}
 }
+
+func (p *Protocol) DecodeUpdate(message []byte) (string, string, error) {
+	arguments, err := p.decodeCommand(UPDATE, message)
+
+	if err != nil {
+		return "", "", err
+	}
+
+	if len(arguments) != 2 {
+		return "", "", errors.New(fmt.Sprintf("expected 2 arguments for an UPDATE command but found %d: %v", len(arguments), arguments))
+	}
+
+	return arguments[0], arguments[1], nil
+}
+
+func (p *Protocol) EncodeUpdateResponse(successful bool) []byte {
+	if successful {
+		return p.encodeAckResponse()
+	} else {
+		return p.EncodeNullResponse()
+	}
+}

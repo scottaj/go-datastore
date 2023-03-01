@@ -172,3 +172,27 @@ func (c *Client) Expire(key string, expiration time.Time) (bool, error) {
 		return false, errors.New(fmt.Sprintf("invalid response for EXPIRE command %q", responseCommand))
 	}
 }
+
+func (c *Client) Update(key string, value string) (bool, error) {
+	updateCommand, err := c.wire.EncodeMessage(wire.UPDATE, key, value)
+	if err != nil {
+		return false, err
+	}
+
+	responseCommand, responseMessage, err := c.connectAndSendMessage(updateCommand)
+	if err != nil {
+		return false, err
+	}
+
+	switch responseCommand {
+	case wire.NULL:
+		return false, nil
+	case wire.ERR:
+		err := c.wire.DecodeError(responseMessage)
+		return false, err
+	case wire.ACK:
+		return true, nil
+	default:
+		return false, errors.New(fmt.Sprintf("invalid response for UPDATE command %q", responseCommand))
+	}
+}

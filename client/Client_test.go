@@ -30,7 +30,7 @@ func TestE2EClient(t *testing.T) {
 	}
 
 	readValue, present, err = client.Read(key)
-	if err != nil || present != true {
+	if err != nil || present != true || readValue != value {
 		t.Fatalf("Expected to read value %q for key %q but got %q: %q", key, value, readValue, err)
 	}
 
@@ -39,15 +39,26 @@ func TestE2EClient(t *testing.T) {
 		t.Fatalf("Expected to not read expiration %q", err)
 	}
 
-	setExpiration := time.Now().Add(time.Second * 30)
+	setExpiration := time.Now().Add(time.Minute * 30)
 	success, err = client.Expire(key, setExpiration)
-	if err != nil {
+	if success != true || err != nil {
 		t.Fatalf("Got error setting expiration %q", err)
 	}
 
 	expiration, expirationPresent, err := client.ReadExpiration(key)
 	if err != nil || expirationPresent != true || expiration.UnixMilli() != setExpiration.UnixMilli() {
 		t.Fatalf("Expected to read expiration %q but instead read %q: %q", setExpiration, expiration, err)
+	}
+
+	newValue := "def456"
+	success, err = client.Update(key, newValue)
+	if success != true || err != nil {
+		t.Fatalf("Got error updating %q", err)
+	}
+
+	readValue, present, err = client.Read(key)
+	if err != nil || present != true || readValue != newValue {
+		t.Fatalf("Expected to read value %q for key %q but got %q: %q", key, value, readValue, err)
 	}
 
 	err = runningServer.Stop()

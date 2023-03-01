@@ -168,6 +168,14 @@ func (s *Server) handleConnection(connection net.Conn) {
 		}
 
 		response = s.wire.EncodeExpireResponse(s.dataStore.Expire(key, expiration))
+	case wire.UPDATE:
+		key, value, err := s.wire.DecodeUpdate(message)
+		if err != nil {
+			s.sendErrorResponse(connection, err)
+			return
+		}
+
+		response = s.wire.EncodeUpdateResponse(s.dataStore.Update(key, value))
 	default:
 		response = s.wire.EncodeErrResponse(errors.New(fmt.Sprintf("Unknown command %q for message %v", command, message)))
 	}
