@@ -111,7 +111,12 @@ func (ds *DataStore) Update(key string, value string) bool {
 	valueExists := ds.Present(key)
 	if valueExists {
 		ds.internalStoreMutex.Lock()
-		ds.inMemoryStore[key] = dataNode{value: value}
+		currentNode := ds.inMemoryStore[key]
+		ds.inMemoryStore[key] = dataNode{
+			value:         value,
+			hasExpiration: currentNode.hasExpiration,
+			expiration:    currentNode.expiration,
+		}
 		ds.internalStoreMutex.Unlock()
 		return true
 	}
@@ -134,7 +139,16 @@ func (ds *DataStore) Upsert(key string, value string) bool {
 	}
 
 	ds.internalStoreMutex.Lock()
-	ds.inMemoryStore[key] = dataNode{value: value}
+	if valueExists {
+		currentNode := ds.inMemoryStore[key]
+		ds.inMemoryStore[key] = dataNode{
+			value:         value,
+			hasExpiration: currentNode.hasExpiration,
+			expiration:    currentNode.expiration,
+		}
+	} else {
+		ds.inMemoryStore[key] = dataNode{value: value}
+	}
 	ds.keyIndex.Add(key)
 
 	ds.internalStoreMutex.Unlock()

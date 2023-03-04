@@ -769,3 +769,28 @@ func TestExpireKeysByPrefix(t *testing.T) {
 		t.Fatalf("expected no keys left but found %d: %q", len(noKeys), noKeys)
 	}
 }
+
+func TestUpdateAndUpsertDoNotRemoveExpirations(t *testing.T) {
+	ds := NewDataStore()
+	key, value := "key1", "abc123"
+	ds.Insert(key, value)
+	expiration := time.Now().Add(time.Minute * 30)
+	ds.Expire(key, expiration)
+
+	readExpiration, present := ds.ReadExpiration(key)
+	if present != true || readExpiration != expiration {
+		t.Fatalf("Expected expiration to be set to %q but was not: %q", expiration, readExpiration)
+	}
+
+	ds.Update(key, "def456")
+	readExpiration, present = ds.ReadExpiration(key)
+	if present != true || readExpiration != expiration {
+		t.Fatalf("Expected expiration to be set to %q but was not: %q", expiration, readExpiration)
+	}
+
+	ds.Upsert(key, "ghi789")
+	readExpiration, present = ds.ReadExpiration(key)
+	if present != true || readExpiration != expiration {
+		t.Fatalf("Expected expiration to be set to %q but was not: %q", expiration, readExpiration)
+	}
+}
