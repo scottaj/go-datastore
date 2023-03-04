@@ -71,6 +71,16 @@ func TestE2EClient(t *testing.T) {
 		t.Fatalf("Expected to not read deleted value %q for key %q but got %q: %q", key, value, readValue, err)
 	}
 
+	success, err = client.Upsert(key, newValue)
+	if success != true || err != nil {
+		t.Fatalf("Got error upserting %q", err)
+	}
+
+	readValue, present, err = client.Read(key)
+	if err != nil || present != true || readValue != newValue {
+		t.Fatalf("Expected to read value %q for key %q but got %q: %q", key, value, readValue, err)
+	}
+
 	err = runningServer.Stop()
 	if err != nil {
 		t.Fatalf("Got an error shutting down server %q", err)

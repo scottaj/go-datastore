@@ -125,8 +125,13 @@ func (ds *DataStore) Update(key string, value string) bool {
 *
 * return the updated value of the key.
  */
-func (ds *DataStore) Upsert(key string, value string) string {
+func (ds *DataStore) Upsert(key string, value string) bool {
 	go ds.cleanupExpirations()
+	currentValue, valueExists := ds.Read(key)
+
+	if valueExists && currentValue == value {
+		return false
+	}
 
 	ds.internalStoreMutex.Lock()
 	ds.inMemoryStore[key] = dataNode{value: value}
@@ -134,7 +139,7 @@ func (ds *DataStore) Upsert(key string, value string) string {
 
 	ds.internalStoreMutex.Unlock()
 
-	return value
+	return true
 }
 
 // Delete

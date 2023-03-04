@@ -253,6 +253,14 @@ func (p *Protocol) EncodeDeleteResponse(success bool) []byte {
 	return p.encodeAckOrNullResponse(success)
 }
 
+func (p *Protocol) DecodeUpsert(message []byte) (string, string, error) {
+	return p.decodeKeyValueCommand(UPSERT, message)
+}
+
+func (p *Protocol) EncodeUpsertResponse(success bool) []byte {
+	return p.encodeAckOrNullResponse(success)
+}
+
 func (p *Protocol) decodeCommand(command Command, message []byte) ([]string, error) {
 	var arguments []string
 

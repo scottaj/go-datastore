@@ -55,12 +55,61 @@ func (c *Client) Read(key string) (string, bool, error) {
 }
 
 func (c *Client) Insert(key string, value string) (bool, error) {
-	insertCommand, err := c.wire.EncodeMessage(wire.INSERT, key, value)
+	return c.executeAckOrNullCommand(wire.INSERT, key, value)
+}
+
+func (c *Client) ReadExpiration(key string) (time.Time, bool, error) {
+	readCommand, err := c.wire.EncodeMessage(wire.READEXPIRATION, key)
+	if err != nil {
+		return time.Time{}, false, err
+	}
+
+	responseCommand, responseMessage, err := c.connectAndSendMessage(readCommand)
+	if err != nil {
+		return time.Time{}, false, err
+	}
+
+	switch responseCommand {
+	case wire.NULL:
+		return time.Time{}, false, nil
+	case wire.ERR:
+		err := c.wire.DecodeError(responseMessage)
+		return time.Time{}, false, err
+	case wire.READEXPIRATION:
+		value, err := c.wire.DecodeReadExpirationResponse(responseMessage)
+		if err != nil {
+			return time.Time{}, false, err
+		}
+
+		return value, true, nil
+	default:
+		return time.Time{}, false, errors.New(fmt.Sprintf("invalid response for READEXPIRATION command %q", responseCommand))
+	}
+}
+
+func (c *Client) Expire(key string, expiration time.Time) (bool, error) {
+	return c.executeAckOrNullCommand(wire.EXPIRE, key, c.wire.EncodeTime(expiration))
+}
+
+func (c *Client) Update(key string, value string) (bool, error) {
+	return c.executeAckOrNullCommand(wire.UPDATE, key, value)
+}
+
+func (c *Client) Delete(key string) (bool, error) {
+	return c.executeAckOrNullCommand(wire.DELETE, key)
+}
+
+func (c *Client) Upsert(key string, value string) (bool, error) {
+	return c.executeAckOrNullCommand(wire.UPSERT, key, value)
+}
+
+func (c *Client) executeAckOrNullCommand(command wire.Command, args ...string) (bool, error) {
+	parsedCommand, err := c.wire.EncodeMessage(command, args...)
 	if err != nil {
 		return false, err
 	}
 
-	responseCommand, responseMessage, err := c.connectAndSendMessage(insertCommand)
+	responseCommand, responseMessage, err := c.connectAndSendMessage(parsedCommand)
 	if err != nil {
 		return false, err
 	}
@@ -74,7 +123,7 @@ func (c *Client) Insert(key string, value string) (bool, error) {
 	case wire.ACK:
 		return true, nil
 	default:
-		return false, errors.New(fmt.Sprintf("invalid response for INSERT command %q", responseCommand))
+		return false, errors.New(fmt.Sprintf("invalid response for %q command %q", command, responseCommand))
 	}
 }
 
@@ -118,105 +167,4 @@ func (c *Client) connectAndSendMessage(message []byte) (wire.Command, []byte, er
 	}
 
 	return responseCommand, responseMessage, nil
-}
-
-func (c *Client) ReadExpiration(key string) (time.Time, bool, error) {
-	readCommand, err := c.wire.EncodeMessage(wire.READEXPIRATION, key)
-	if err != nil {
-		return time.Time{}, false, err
-	}
-
-	responseCommand, responseMessage, err := c.connectAndSendMessage(readCommand)
-	if err != nil {
-		return time.Time{}, false, err
-	}
-
-	switch responseCommand {
-	case wire.NULL:
-		return time.Time{}, false, nil
-	case wire.ERR:
-		err := c.wire.DecodeError(responseMessage)
-		return time.Time{}, false, err
-	case wire.READEXPIRATION:
-		value, err := c.wire.DecodeReadExpirationResponse(responseMessage)
-		if err != nil {
-			return time.Time{}, false, err
-		}
-
-		return value, true, nil
-	default:
-		return time.Time{}, false, errors.New(fmt.Sprintf("invalid response for READEXPIRATION command %q", responseCommand))
-	}
-}
-
-func (c *Client) Expire(key string, expiration time.Time) (bool, error) {
-	expireCommand, err := c.wire.EncodeMessage(wire.EXPIRE, key, c.wire.EncodeTime(expiration))
-	if err != nil {
-		return false, err
-	}
-
-	responseCommand, responseMessage, err := c.connectAndSendMessage(expireCommand)
-	if err != nil {
-		return false, err
-	}
-
-	switch responseCommand {
-	case wire.NULL:
-		return false, nil
-	case wire.ERR:
-		err := c.wire.DecodeError(responseMessage)
-		return false, err
-	case wire.ACK:
-		return true, nil
-	default:
-		return false, errors.New(fmt.Sprintf("invalid response for EXPIRE command %q", responseCommand))
-	}
-}
-
-func (c *Client) Update(key string, value string) (bool, error) {
-	updateCommand, err := c.wire.EncodeMessage(wire.UPDATE, key, value)
-	if err != nil {
-		return false, err
-	}
-
-	responseCommand, responseMessage, err := c.connectAndSendMessage(updateCommand)
-	if err != nil {
-		return false, err
-	}
-
-	switch responseCommand {
-	case wire.NULL:
-		return false, nil
-	case wire.ERR:
-		err := c.wire.DecodeError(responseMessage)
-		return false, err
-	case wire.ACK:
-		return true, nil
-	default:
-		return false, errors.New(fmt.Sprintf("invalid response for UPDATE command %q", responseCommand))
-	}
-}
-
-func (c *Client) Delete(key string) (bool, error) {
-	deleteCommand, err := c.wire.EncodeMessage(wire.DELETE, key)
-	if err != nil {
-		return false, err
-	}
-
-	responseCommand, responseMessage, err := c.connectAndSendMessage(deleteCommand)
-	if err != nil {
-		return false, err
-	}
-
-	switch responseCommand {
-	case wire.NULL:
-		return false, nil
-	case wire.ERR:
-		err := c.wire.DecodeError(responseMessage)
-		return false, err
-	case wire.ACK:
-		return true, nil
-	default:
-		return false, errors.New(fmt.Sprintf("invalid response for DELETE command %q", responseCommand))
-	}
 }

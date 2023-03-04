@@ -132,8 +132,8 @@ func TestUpsertNewValueAndUpdateIt(t *testing.T) {
 	key := "testkey"
 
 	value := ds.Upsert(key, data)
-	if value != data {
-		t.Fatalf("expected upsert to insert new data %q", value)
+	if value != true {
+		t.Fatalf("expected upsert to insert new data %t", value)
 	}
 	readValue, present := ds.Read(key)
 	if readValue != data || present == false {
@@ -142,8 +142,13 @@ func TestUpsertNewValueAndUpdateIt(t *testing.T) {
 
 	updatedData := "def456"
 	value = ds.Upsert(key, updatedData)
-	if value != updatedData {
-		t.Fatalf("expected upsert to update existing data %q", value)
+	if value != true {
+		t.Fatalf("expected upsert to update existing data %t", value)
+	}
+
+	value = ds.Upsert(key, updatedData)
+	if value != false {
+		t.Fatalf("expected upsert to make no change because value was the same %t", value)
 	}
 
 	readValue, present = ds.Read(key)
