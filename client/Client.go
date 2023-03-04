@@ -196,3 +196,27 @@ func (c *Client) Update(key string, value string) (bool, error) {
 		return false, errors.New(fmt.Sprintf("invalid response for UPDATE command %q", responseCommand))
 	}
 }
+
+func (c *Client) Delete(key string) (bool, error) {
+	deleteCommand, err := c.wire.EncodeMessage(wire.DELETE, key)
+	if err != nil {
+		return false, err
+	}
+
+	responseCommand, responseMessage, err := c.connectAndSendMessage(deleteCommand)
+	if err != nil {
+		return false, err
+	}
+
+	switch responseCommand {
+	case wire.NULL:
+		return false, nil
+	case wire.ERR:
+		err := c.wire.DecodeError(responseMessage)
+		return false, err
+	case wire.ACK:
+		return true, nil
+	default:
+		return false, errors.New(fmt.Sprintf("invalid response for DELETE command %q", responseCommand))
+	}
+}

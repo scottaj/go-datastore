@@ -90,31 +90,11 @@ func (p *Protocol) EncodeMessage(command Command, params ...string) ([]byte, err
 }
 
 func (p *Protocol) DecodeRead(message []byte) (string, error) {
-	arguments, err := p.decodeCommand(READ, message)
-
-	if err != nil {
-		return "", err
-	}
-
-	if len(arguments) != 1 {
-		return "", errors.New(fmt.Sprintf("expected 1 argument for a READ command but found %d: %v", len(arguments), arguments))
-	}
-
-	return arguments[0], nil
+	return p.decodeKeyCommand(READ, message)
 }
 
 func (p *Protocol) DecodeInsert(message []byte) (string, string, error) {
-	arguments, err := p.decodeCommand(INSERT, message)
-
-	if err != nil {
-		return "", "", err
-	}
-
-	if len(arguments) != 2 {
-		return "", "", errors.New(fmt.Sprintf("expected 2 arguments for an INSERT command but found %d: %v", len(arguments), arguments))
-	}
-
-	return arguments[0], arguments[1], nil
+	return p.decodeKeyValueCommand(INSERT, message)
 }
 
 func (p *Protocol) EncodeReadResponse(value string, present bool) []byte {
@@ -225,17 +205,7 @@ func (p *Protocol) DecodeError(message []byte) error {
 }
 
 func (p *Protocol) DecodeReadExpiration(message []byte) (string, error) {
-	arguments, err := p.decodeCommand(READEXPIRATION, message)
-
-	if err != nil {
-		return "", err
-	}
-
-	if len(arguments) != 1 {
-		return "", errors.New(fmt.Sprintf("expected 1 argument for a READEXPIRATION command but found %d: %v", len(arguments), arguments))
-	}
-
-	return arguments[0], nil
+	return p.decodeKeyCommand(READEXPIRATION, message)
 }
 
 func (p *Protocol) EncodeReadExpiationResponse(expiration time.Time, expirationPresent bool) []byte {
@@ -252,17 +222,7 @@ func (p *Protocol) EncodeReadExpiationResponse(expiration time.Time, expirationP
 }
 
 func (p *Protocol) DecodeReadResponse(message []byte) (string, error) {
-	arguments, err := p.decodeCommand(READ, message)
-
-	if err != nil {
-		return "", err
-	}
-
-	if len(arguments) != 1 {
-		return "", errors.New(fmt.Sprintf("expected 1 argument for a READ response but found %d: %v", len(arguments), arguments))
-	}
-
-	return arguments[0], nil
+	return p.decodeKeyCommand(READ, message)
 }
 
 func (p *Protocol) DecodeReadExpirationResponse(message []byte) (time.Time, error) {
@@ -313,31 +273,57 @@ func (p *Protocol) DecodeExpire(message []byte) (string, time.Time, error) {
 }
 
 func (p *Protocol) EncodeExpireResponse(expirationSet bool) []byte {
-	if expirationSet {
-		return p.encodeAckResponse()
-	} else {
-		return p.EncodeNullResponse()
-	}
+	return p.encodeAckOrNullResponse(expirationSet)
 }
 
 func (p *Protocol) DecodeUpdate(message []byte) (string, string, error) {
-	arguments, err := p.decodeCommand(UPDATE, message)
+	return p.decodeKeyValueCommand(UPDATE, message)
+}
+
+func (p *Protocol) EncodeUpdateResponse(successful bool) []byte {
+	return p.encodeAckOrNullResponse(successful)
+}
+
+func (p *Protocol) DecodeDelete(message []byte) (string, error) {
+	return p.decodeKeyCommand(DELETE, message)
+}
+
+func (p *Protocol) decodeKeyCommand(command Command, message []byte) (string, error) {
+	arguments, err := p.decodeCommand(command, message)
+
+	if err != nil {
+		return "", err
+	}
+
+	if len(arguments) != 1 {
+		return "", errors.New(fmt.Sprintf("expected 1 arguments for a %q command but found %d: %v", command, len(arguments), arguments))
+	}
+
+	return arguments[0], nil
+}
+
+func (p *Protocol) decodeKeyValueCommand(command Command, message []byte) (string, string, error) {
+	arguments, err := p.decodeCommand(command, message)
 
 	if err != nil {
 		return "", "", err
 	}
 
 	if len(arguments) != 2 {
-		return "", "", errors.New(fmt.Sprintf("expected 2 arguments for an UPDATE command but found %d: %v", len(arguments), arguments))
+		return "", "", errors.New(fmt.Sprintf("expected 2 arguments for an %q command but found %d: %v", command, len(arguments), arguments))
 	}
 
 	return arguments[0], arguments[1], nil
 }
 
-func (p *Protocol) EncodeUpdateResponse(successful bool) []byte {
-	if successful {
+func (p *Protocol) encodeAckOrNullResponse(success bool) []byte {
+	if success {
 		return p.encodeAckResponse()
 	} else {
 		return p.EncodeNullResponse()
 	}
+}
+
+func (p *Protocol) EncodeDeleteResponse(success bool) []byte {
+	return p.encodeAckOrNullResponse(success)
 }
