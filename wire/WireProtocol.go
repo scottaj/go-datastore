@@ -89,12 +89,57 @@ func (p *Protocol) EncodeMessage(command Command, params ...string) ([]byte, err
 	return message, nil
 }
 
+func (p *Protocol) DecodeError(message []byte) error {
+	arguments, err := p.decodeCommand(ERR, message)
+
+	if err != nil {
+		return err
+	}
+
+	if len(arguments) != 1 {
+		return errors.New(fmt.Sprintf("expected 1 argument for an err command but found %d: %v", len(arguments), arguments))
+	}
+
+	return errors.New(arguments[0])
+}
+
+func (p *Protocol) EncodeErrResponse(err error) []byte {
+	var message []byte
+
+	message = append(message, []byte(ERR)...)
+	message = append(message, messageSeparatorBinary)
+
+	errLength := make([]byte, 4)
+	binary.LittleEndian.PutUint32(errLength, uint32(len(err.Error())))
+	message = append(message, errLength...)
+	message = append(message, messageSeparatorBinary)
+	message = append(message, []byte(err.Error())...)
+
+	messageLength := make([]byte, 4)
+	binary.LittleEndian.PutUint32(messageLength, uint32(len(message)+5))
+
+	messageLength = append(messageLength, messageSeparatorBinary)
+	message = append(messageLength, message...)
+
+	return message
+}
+
+func (p *Protocol) EncodeNullResponse() []byte {
+	// 0009|NULL
+	return []byte{0x9, 0x0, 0x0, 0x0, messageSeparatorBinary, 0x4E, 0x55, 0x4C, 0x4C}
+}
+
+func (p *Protocol) EncodeAckResponse() []byte {
+	// 0008|ACK
+	return []byte{0x8, 0x0, 0x0, 0x0, messageSeparatorBinary, 0x41, 0x43, 0x4B}
+}
+
 func (p *Protocol) DecodeRead(message []byte) (string, error) {
 	return p.decodeKeyCommand(READ, message)
 }
 
-func (p *Protocol) DecodeInsert(message []byte) (string, string, error) {
-	return p.decodeKeyValueCommand(INSERT, message)
+func (p *Protocol) DecodeReadResponse(message []byte) (string, error) {
+	return p.decodeKeyCommand(READ, message)
 }
 
 func (p *Protocol) EncodeReadResponse(value string, present bool) []byte {
@@ -108,6 +153,104 @@ func (p *Protocol) EncodeReadResponse(value string, present bool) []byte {
 	} else {
 		return p.EncodeNullResponse()
 	}
+}
+
+func (p *Protocol) DecodeInsert(message []byte) (string, string, error) {
+	return p.decodeKeyValueCommand(INSERT, message)
+}
+
+func (p *Protocol) EncodeInsertResponse(valueInserted bool) []byte {
+	return p.encodeAckOrNullResponse(valueInserted)
+}
+
+func (p *Protocol) DecodeTime(timestampString string) (time.Time, error) {
+	timestamp, err := strconv.ParseInt(timestampString, 10, 64)
+	if err != nil {
+		return time.Time{}, errors.New(fmt.Sprintf("Expected a unix millisecond timestamp, but could not get that from arguement value %q: %q", timestampString, err))
+	}
+
+	return time.UnixMilli(timestamp), nil
+}
+
+// EncodeTime
+// Times are encoded in the protocol as unix timestamps with milliseconds
+func (p *Protocol) EncodeTime(time time.Time) string {
+	return strconv.FormatInt(time.UnixMilli(), 10)
+}
+
+func (p *Protocol) DecodeReadExpiration(message []byte) (string, error) {
+	return p.decodeKeyCommand(READEXPIRATION, message)
+}
+
+func (p *Protocol) DecodeReadExpirationResponse(message []byte) (time.Time, error) {
+	arguments, err := p.decodeCommand(READEXPIRATION, message)
+
+	if err != nil {
+		return time.Time{}, err
+	}
+
+	if len(arguments) != 1 {
+		return time.Time{}, errors.New(fmt.Sprintf("expected 1 argument for a READ response but found %d: %v", len(arguments), arguments))
+	}
+
+	decodedTime, err := p.DecodeTime(arguments[0])
+	if err != nil {
+		return time.Time{}, err
+	}
+
+	return decodedTime, nil
+}
+
+func (p *Protocol) EncodeReadExpiationResponse(expiration time.Time, expirationPresent bool) []byte {
+	if expirationPresent {
+		message, err := p.EncodeMessage(READEXPIRATION, p.EncodeTime(expiration))
+		if err != nil {
+			return p.EncodeErrResponse(err)
+		}
+
+		return message
+	} else {
+		return p.EncodeNullResponse()
+	}
+}
+
+func (p *Protocol) DecodeExpire(message []byte) (string, time.Time, error) {
+	arguments, err := p.decodeCommand(EXPIRE, message)
+
+	if err != nil {
+		return "", time.Time{}, err
+	}
+
+	if len(arguments) != 2 {
+		return "", time.Time{}, errors.New(fmt.Sprintf("expected 2 arguments for an EXPIRE command but found %d: %v", len(arguments), arguments))
+	}
+
+	decodedTime, err := p.DecodeTime(arguments[1])
+	if err != nil {
+		return "", time.Time{}, err
+	}
+
+	return arguments[0], decodedTime, nil
+}
+
+func (p *Protocol) EncodeExpireResponse(expirationSet bool) []byte {
+	return p.encodeAckOrNullResponse(expirationSet)
+}
+
+func (p *Protocol) DecodeUpdate(message []byte) (string, string, error) {
+	return p.decodeKeyValueCommand(UPDATE, message)
+}
+
+func (p *Protocol) EncodeUpdateResponse(successful bool) []byte {
+	return p.encodeAckOrNullResponse(successful)
+}
+
+func (p *Protocol) DecodeDelete(message []byte) (string, error) {
+	return p.decodeKeyCommand(DELETE, message)
+}
+
+func (p *Protocol) EncodeDeleteResponse(success bool) []byte {
+	return p.encodeAckOrNullResponse(success)
 }
 
 func (p *Protocol) decodeCommand(command Command, message []byte) ([]string, error) {
@@ -145,149 +288,6 @@ func (p *Protocol) decodeCommand(command Command, message []byte) ([]string, err
 	return arguments, nil
 }
 
-// EncodeTime
-// Times are encoded in the protocol as unix timestamps with milliseconds
-func (p *Protocol) EncodeTime(time time.Time) string {
-	return strconv.FormatInt(time.UnixMilli(), 10)
-}
-
-func (p *Protocol) EncodeErrResponse(err error) []byte {
-	var message []byte
-
-	message = append(message, []byte(ERR)...)
-	message = append(message, messageSeparatorBinary)
-
-	errLength := make([]byte, 4)
-	binary.LittleEndian.PutUint32(errLength, uint32(len(err.Error())))
-	message = append(message, errLength...)
-	message = append(message, messageSeparatorBinary)
-	message = append(message, []byte(err.Error())...)
-
-	messageLength := make([]byte, 4)
-	binary.LittleEndian.PutUint32(messageLength, uint32(len(message)+5))
-
-	messageLength = append(messageLength, messageSeparatorBinary)
-	message = append(messageLength, message...)
-
-	return message
-}
-
-func (p *Protocol) EncodeNullResponse() []byte {
-	// 0009|NULL
-	return []byte{0x9, 0x0, 0x0, 0x0, messageSeparatorBinary, 0x4E, 0x55, 0x4C, 0x4C}
-}
-
-func (p *Protocol) encodeAckResponse() []byte {
-	// 0008|ACK
-	return []byte{0x8, 0x0, 0x0, 0x0, messageSeparatorBinary, 0x41, 0x43, 0x4B}
-}
-
-func (p *Protocol) EncodeInsertResponse(valueInserted bool) []byte {
-	if valueInserted {
-		return p.encodeAckResponse()
-	} else {
-		return p.EncodeNullResponse()
-	}
-}
-
-func (p *Protocol) DecodeError(message []byte) error {
-	arguments, err := p.decodeCommand(ERR, message)
-
-	if err != nil {
-		return err
-	}
-
-	if len(arguments) != 1 {
-		return errors.New(fmt.Sprintf("expected 1 argument for an err command but found %d: %v", len(arguments), arguments))
-	}
-
-	return errors.New(arguments[0])
-}
-
-func (p *Protocol) DecodeReadExpiration(message []byte) (string, error) {
-	return p.decodeKeyCommand(READEXPIRATION, message)
-}
-
-func (p *Protocol) EncodeReadExpiationResponse(expiration time.Time, expirationPresent bool) []byte {
-	if expirationPresent {
-		message, err := p.EncodeMessage(READEXPIRATION, p.EncodeTime(expiration))
-		if err != nil {
-			return p.EncodeErrResponse(err)
-		}
-
-		return message
-	} else {
-		return p.EncodeNullResponse()
-	}
-}
-
-func (p *Protocol) DecodeReadResponse(message []byte) (string, error) {
-	return p.decodeKeyCommand(READ, message)
-}
-
-func (p *Protocol) DecodeReadExpirationResponse(message []byte) (time.Time, error) {
-	arguments, err := p.decodeCommand(READEXPIRATION, message)
-
-	if err != nil {
-		return time.Time{}, err
-	}
-
-	if len(arguments) != 1 {
-		return time.Time{}, errors.New(fmt.Sprintf("expected 1 argument for a READ response but found %d: %v", len(arguments), arguments))
-	}
-
-	decodedTime, err := p.decodeTime(arguments[0])
-	if err != nil {
-		return time.Time{}, err
-	}
-
-	return decodedTime, nil
-}
-
-func (p *Protocol) decodeTime(timestampString string) (time.Time, error) {
-	timestamp, err := strconv.ParseInt(timestampString, 10, 64)
-	if err != nil {
-		return time.Time{}, errors.New(fmt.Sprintf("Expected a unix millisecond timestamp, but could not get that from arguement value %q: %q", timestampString, err))
-	}
-
-	return time.UnixMilli(timestamp), nil
-}
-
-func (p *Protocol) DecodeExpire(message []byte) (string, time.Time, error) {
-	arguments, err := p.decodeCommand(EXPIRE, message)
-
-	if err != nil {
-		return "", time.Time{}, err
-	}
-
-	if len(arguments) != 2 {
-		return "", time.Time{}, errors.New(fmt.Sprintf("expected 2 arguments for an EXPIRE command but found %d: %v", len(arguments), arguments))
-	}
-
-	decodedTime, err := p.decodeTime(arguments[1])
-	if err != nil {
-		return "", time.Time{}, err
-	}
-
-	return arguments[0], decodedTime, nil
-}
-
-func (p *Protocol) EncodeExpireResponse(expirationSet bool) []byte {
-	return p.encodeAckOrNullResponse(expirationSet)
-}
-
-func (p *Protocol) DecodeUpdate(message []byte) (string, string, error) {
-	return p.decodeKeyValueCommand(UPDATE, message)
-}
-
-func (p *Protocol) EncodeUpdateResponse(successful bool) []byte {
-	return p.encodeAckOrNullResponse(successful)
-}
-
-func (p *Protocol) DecodeDelete(message []byte) (string, error) {
-	return p.decodeKeyCommand(DELETE, message)
-}
-
 func (p *Protocol) decodeKeyCommand(command Command, message []byte) (string, error) {
 	arguments, err := p.decodeCommand(command, message)
 
@@ -318,12 +318,8 @@ func (p *Protocol) decodeKeyValueCommand(command Command, message []byte) (strin
 
 func (p *Protocol) encodeAckOrNullResponse(success bool) []byte {
 	if success {
-		return p.encodeAckResponse()
+		return p.EncodeAckResponse()
 	} else {
 		return p.EncodeNullResponse()
 	}
-}
-
-func (p *Protocol) EncodeDeleteResponse(success bool) []byte {
-	return p.encodeAckOrNullResponse(success)
 }
