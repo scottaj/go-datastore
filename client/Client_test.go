@@ -91,6 +91,23 @@ func TestE2EClient(t *testing.T) {
 		t.Fatalf("Got error truncating %q", err)
 	}
 
+	count, err := client.Count()
+	if err != nil || count != 0 {
+		t.Fatalf("Expected 0 keys but found %d: %v", count, err)
+	}
+
+	client.Insert("state:MI:city:Detroit", "123")
+	client.Insert("state:MI:city:Grand Rapids", "456")
+	client.Insert("state:MI:city:China", "789")
+	client.Insert("state:OH:city:Sandusky", "123")
+	client.Insert("state:OH:city:Toledo", "456")
+	client.Insert("state:IN:city:Gary", "123")
+
+	count, err = client.Count()
+	if err != nil || count != 6 {
+		t.Fatalf("Expected 6 keys but found %d: %v", count, err)
+	}
+
 	err = runningServer.Stop()
 	if err != nil {
 		t.Fatalf("Got an error shutting down server %q", err)

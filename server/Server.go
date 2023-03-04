@@ -209,6 +209,14 @@ func (s *Server) handleConnection(connection net.Conn) {
 
 		s.dataStore.Truncate()
 		response = s.wire.EncodeAckResponse()
+	case wire.COUNT:
+		err := s.wire.DecodeCount(message)
+		if err != nil {
+			s.sendErrorResponse(connection, err)
+			return
+		}
+
+		response = s.wire.EncodeCountResponse(s.dataStore.Count())
 	default:
 		response = s.wire.EncodeErrResponse(errors.New(fmt.Sprintf("Unknown command %q for message %v", command, message)))
 	}

@@ -111,6 +111,33 @@ func (c *Client) Truncate() (bool, error) {
 	return c.executeAckOrNullCommand(wire.TRUNCATE)
 }
 
+func (c *Client) Count() (int, error) {
+	countCommand, err := c.wire.EncodeMessage(wire.COUNT)
+	if err != nil {
+		return 0, err
+	}
+
+	responseCommand, responseMessage, err := c.connectAndSendMessage(countCommand)
+	if err != nil {
+		return 0, err
+	}
+
+	switch responseCommand {
+	case wire.ERR:
+		err := c.wire.DecodeError(responseMessage)
+		return 0, err
+	case wire.COUNT:
+		value, err := c.wire.DecodeCountResponse(responseMessage)
+		if err != nil {
+			return 0, err
+		}
+
+		return value, nil
+	default:
+		return 0, errors.New(fmt.Sprintf("invalid response for READ command %q", responseCommand))
+	}
+}
+
 func (c *Client) executeAckOrNullCommand(command wire.Command, args ...string) (bool, error) {
 	parsedCommand, err := c.wire.EncodeMessage(command, args...)
 	if err != nil {

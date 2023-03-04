@@ -270,17 +270,40 @@ func (p *Protocol) EncodePresentResponse(present bool) []byte {
 }
 
 func (p *Protocol) DecodeTruncate(message []byte) error {
-	arguments, err := p.decodeCommand(TRUNCATE, message)
+	return p.decodeEmptyCommand(TRUNCATE, message)
+}
+
+func (p *Protocol) DecodeCount(message []byte) error {
+	return p.decodeEmptyCommand(COUNT, message)
+}
+
+func (p *Protocol) DecodeCountResponse(message []byte) (int, error) {
+	arguments, err := p.decodeCommand(COUNT, message)
 
 	if err != nil {
-		return err
+		return 0, err
 	}
 
-	if len(arguments) != 0 {
-		return errors.New(fmt.Sprintf("expected no for a TRUNCATE command but found %d: %v", len(arguments), arguments))
+	if len(arguments) != 1 {
+		return 0, errors.New(fmt.Sprintf("expected 1 argument for a READ response but found %d: %v", len(arguments), arguments))
 	}
 
-	return nil
+	intValue, err := strconv.Atoi(arguments[0])
+	if err != nil {
+		return 0, err
+	}
+
+	return intValue, nil
+}
+
+func (p *Protocol) EncodeCountResponse(count int) []byte {
+	message, err := p.EncodeMessage(COUNT, strconv.Itoa(count))
+
+	if err != nil {
+		return p.EncodeErrResponse(err)
+	}
+
+	return message
 }
 
 func (p *Protocol) decodeCommand(command Command, message []byte) ([]string, error) {
@@ -352,4 +375,18 @@ func (p *Protocol) encodeAckOrNullResponse(success bool) []byte {
 	} else {
 		return p.EncodeNullResponse()
 	}
+}
+
+func (p *Protocol) decodeEmptyCommand(command Command, message []byte) error {
+	arguments, err := p.decodeCommand(command, message)
+
+	if err != nil {
+		return err
+	}
+
+	if len(arguments) != 0 {
+		return errors.New(fmt.Sprintf("expected no arguments for a %q command but found %d: %v", command, len(arguments), arguments))
+	}
+
+	return nil
 }
