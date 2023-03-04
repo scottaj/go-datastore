@@ -261,6 +261,14 @@ func (p *Protocol) EncodeUpsertResponse(success bool) []byte {
 	return p.encodeAckOrNullResponse(success)
 }
 
+func (p *Protocol) DecodePresent(message []byte) (string, error) {
+	return p.decodeKeyCommand(PRESENT, message)
+}
+
+func (p *Protocol) EncodePresentResponse(present bool) []byte {
+	return p.encodeAckOrNullResponse(present)
+}
+
 func (p *Protocol) decodeCommand(command Command, message []byte) ([]string, error) {
 	var arguments []string
 

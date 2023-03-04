@@ -192,6 +192,14 @@ func (s *Server) handleConnection(connection net.Conn) {
 		}
 
 		response = s.wire.EncodeUpsertResponse(s.dataStore.Upsert(key, value))
+	case wire.PRESENT:
+		key, err := s.wire.DecodePresent(message)
+		if err != nil {
+			s.sendErrorResponse(connection, err)
+			return
+		}
+
+		response = s.wire.EncodePresentResponse(s.dataStore.Present(key))
 	default:
 		response = s.wire.EncodeErrResponse(errors.New(fmt.Sprintf("Unknown command %q for message %v", command, message)))
 	}

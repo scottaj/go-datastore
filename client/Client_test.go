@@ -81,6 +81,11 @@ func TestE2EClient(t *testing.T) {
 		t.Fatalf("Expected to read value %q for key %q but got %q: %q", key, value, readValue, err)
 	}
 
+	present, err = client.Present(key)
+	if err != nil || present != true {
+		t.Fatalf("Expected to find a value for key %q but was absent: %q", key, err)
+	}
+
 	err = runningServer.Stop()
 	if err != nil {
 		t.Fatalf("Got an error shutting down server %q", err)
