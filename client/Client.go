@@ -107,6 +107,10 @@ func (c *Client) Present(key string) (bool, error) {
 	return c.executeAckOrNullCommand(wire.PRESENT, key)
 }
 
+func (c *Client) Truncate() (bool, error) {
+	return c.executeAckOrNullCommand(wire.TRUNCATE)
+}
+
 func (c *Client) executeAckOrNullCommand(command wire.Command, args ...string) (bool, error) {
 	parsedCommand, err := c.wire.EncodeMessage(command, args...)
 	if err != nil {

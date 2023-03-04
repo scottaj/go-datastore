@@ -269,6 +269,20 @@ func (p *Protocol) EncodePresentResponse(present bool) []byte {
 	return p.encodeAckOrNullResponse(present)
 }
 
+func (p *Protocol) DecodeTruncate(message []byte) error {
+	arguments, err := p.decodeCommand(TRUNCATE, message)
+
+	if err != nil {
+		return err
+	}
+
+	if len(arguments) != 0 {
+		return errors.New(fmt.Sprintf("expected no for a TRUNCATE command but found %d: %v", len(arguments), arguments))
+	}
+
+	return nil
+}
+
 func (p *Protocol) decodeCommand(command Command, message []byte) ([]string, error) {
 	var arguments []string
 

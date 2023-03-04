@@ -200,6 +200,15 @@ func (s *Server) handleConnection(connection net.Conn) {
 		}
 
 		response = s.wire.EncodePresentResponse(s.dataStore.Present(key))
+	case wire.TRUNCATE:
+		err := s.wire.DecodeTruncate(message)
+		if err != nil {
+			s.sendErrorResponse(connection, err)
+			return
+		}
+
+		s.dataStore.Truncate()
+		response = s.wire.EncodeAckResponse()
 	default:
 		response = s.wire.EncodeErrResponse(errors.New(fmt.Sprintf("Unknown command %q for message %v", command, message)))
 	}

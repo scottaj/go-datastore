@@ -86,6 +86,11 @@ func TestE2EClient(t *testing.T) {
 		t.Fatalf("Expected to find a value for key %q but was absent: %q", key, err)
 	}
 
+	success, err = client.Truncate()
+	if success != true || err != nil {
+		t.Fatalf("Got error truncating %q", err)
+	}
+
 	err = runningServer.Stop()
 	if err != nil {
 		t.Fatalf("Got an error shutting down server %q", err)
