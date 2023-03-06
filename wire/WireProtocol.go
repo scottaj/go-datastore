@@ -97,7 +97,7 @@ func (p *Protocol) DecodeError(message []byte) error {
 	}
 
 	if len(arguments) != 1 {
-		return errors.New(fmt.Sprintf("expected 1 argument for an err command but found %d: %v", len(arguments), arguments))
+		return errors.New(fmt.Sprintf("expected 1 argument for an err command but found %d: %b", len(arguments), arguments))
 	}
 
 	return errors.New(arguments[0])
@@ -278,32 +278,74 @@ func (p *Protocol) DecodeCount(message []byte) error {
 }
 
 func (p *Protocol) DecodeCountResponse(message []byte) (int, error) {
-	arguments, err := p.decodeCommand(COUNT, message)
-
-	if err != nil {
-		return 0, err
-	}
-
-	if len(arguments) != 1 {
-		return 0, errors.New(fmt.Sprintf("expected 1 argument for a READ response but found %d: %v", len(arguments), arguments))
-	}
-
-	intValue, err := strconv.Atoi(arguments[0])
-	if err != nil {
-		return 0, err
-	}
-
-	return intValue, nil
+	return p.decodeIntResponse(COUNT, message)
 }
 
 func (p *Protocol) EncodeCountResponse(count int) []byte {
-	message, err := p.EncodeMessage(COUNT, strconv.Itoa(count))
+	return p.encodeIntResponse(COUNT, count)
+}
+
+func (p *Protocol) DecodeKeysBy(message []byte) (string, error) {
+	return p.decodeKeyCommand(KEYSBY, message)
+}
+
+func (p *Protocol) DecodeKeysByResponse(message []byte) ([]string, error) {
+	keys, err := p.decodeCommand(KEYSBY, message)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return keys, nil
+}
+
+func (p *Protocol) EncodeKeysByResponse(keys []string) []byte {
+	message, err := p.EncodeMessage(KEYSBY, keys...)
 
 	if err != nil {
 		return p.EncodeErrResponse(err)
 	}
 
 	return message
+}
+
+func (p *Protocol) DecodeDeleteBy(message []byte) (string, error) {
+	return p.decodeKeyCommand(DELETEBY, message)
+}
+
+func (p *Protocol) DecodeDeleteByResponse(message []byte) (int, error) {
+	return p.decodeIntResponse(DELETEBY, message)
+}
+
+func (p *Protocol) EncodeDeleteByResponse(count int) []byte {
+	return p.encodeIntResponse(DELETEBY, count)
+}
+
+func (p *Protocol) DecodeExpireBy(message []byte) (string, time.Time, error) {
+	arguments, err := p.decodeCommand(EXPIREBY, message)
+
+	if err != nil {
+		return "", time.Time{}, err
+	}
+
+	if len(arguments) != 2 {
+		return "", time.Time{}, errors.New(fmt.Sprintf("expected 2 arguments for an EXPIREBY command but found %d: %v", len(arguments), arguments))
+	}
+
+	decodedTime, err := p.DecodeTime(arguments[1])
+	if err != nil {
+		return "", time.Time{}, err
+	}
+
+	return arguments[0], decodedTime, nil
+}
+
+func (p *Protocol) DecodeExpireByResponse(message []byte) (int, error) {
+	return p.decodeIntResponse(EXPIREBY, message)
+}
+
+func (p *Protocol) EncodeExpireByResponse(count int) []byte {
+	return p.encodeIntResponse(EXPIREBY, count)
 }
 
 func (p *Protocol) decodeCommand(command Command, message []byte) ([]string, error) {
@@ -319,7 +361,7 @@ func (p *Protocol) decodeCommand(command Command, message []byte) ([]string, err
 	messageOffset := prefixSize
 	for messageOffset < len(message) && message[messageOffset] == messageSeparatorBinary {
 		if messageOffset+5 > len(message) {
-			return nil, errors.New(fmt.Sprintf("Malformed message, could not decode: %v", message))
+			return nil, errors.New(fmt.Sprintf("Malformed message, could not decode: %b", message))
 		}
 		argumentSize := int(binary.LittleEndian.Uint32(message[messageOffset+1 : messageOffset+5]))
 
@@ -327,7 +369,7 @@ func (p *Protocol) decodeCommand(command Command, message []byte) ([]string, err
 		argumentEnd := argumentStart + argumentSize
 
 		if argumentEnd > len(message) {
-			return nil, errors.New(fmt.Sprintf("Malformed message, could not decode: %v", message))
+			return nil, errors.New(fmt.Sprintf("Malformed message, could not decode: %b", message))
 		}
 		arguments = append(arguments, string(message[argumentStart:argumentEnd]))
 
@@ -335,7 +377,7 @@ func (p *Protocol) decodeCommand(command Command, message []byte) ([]string, err
 	}
 
 	if messageOffset != len(message) {
-		return nil, errors.New(fmt.Sprintf("Malformed message, could not decode: %v", message))
+		return nil, errors.New(fmt.Sprintf("Malformed message, could not decode: %b", message))
 	}
 
 	return arguments, nil
@@ -389,4 +431,33 @@ func (p *Protocol) decodeEmptyCommand(command Command, message []byte) error {
 	}
 
 	return nil
+}
+
+func (p *Protocol) decodeIntResponse(command Command, message []byte) (int, error) {
+	arguments, err := p.decodeCommand(command, message)
+
+	if err != nil {
+		return 0, err
+	}
+
+	if len(arguments) != 1 {
+		return 0, errors.New(fmt.Sprintf("expected 1 argument for a %s response but found %d: %v", command, len(arguments), arguments))
+	}
+
+	intValue, err := strconv.Atoi(arguments[0])
+	if err != nil {
+		return 0, err
+	}
+
+	return intValue, nil
+}
+
+func (p *Protocol) encodeIntResponse(command Command, count int) []byte {
+	message, err := p.EncodeMessage(command, strconv.Itoa(count))
+
+	if err != nil {
+		return p.EncodeErrResponse(err)
+	}
+
+	return message
 }

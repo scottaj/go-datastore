@@ -134,7 +134,88 @@ func (c *Client) Count() (int, error) {
 
 		return value, nil
 	default:
-		return 0, errors.New(fmt.Sprintf("invalid response for READ command %q", responseCommand))
+		return 0, errors.New(fmt.Sprintf("invalid response for COUNT command %q", responseCommand))
+	}
+}
+
+func (c *Client) KeysBy(prefix string) ([]string, error) {
+	keysByCommand, err := c.wire.EncodeMessage(wire.KEYSBY, prefix)
+	if err != nil {
+		return nil, err
+	}
+
+	responseCommand, responseMessage, err := c.connectAndSendMessage(keysByCommand)
+	if err != nil {
+		return nil, err
+	}
+
+	switch responseCommand {
+	case wire.ERR:
+		err := c.wire.DecodeError(responseMessage)
+		return nil, err
+	case wire.KEYSBY:
+		value, err := c.wire.DecodeKeysByResponse(responseMessage)
+		if err != nil {
+			return nil, err
+		}
+
+		return value, nil
+	default:
+		return nil, errors.New(fmt.Sprintf("invalid response for KEYSBY command %q", responseCommand))
+	}
+}
+
+func (c *Client) DeleteBy(prefix string) (int, error) {
+	deleteByCommand, err := c.wire.EncodeMessage(wire.DELETEBY, prefix)
+	if err != nil {
+		return 0, err
+	}
+
+	responseCommand, responseMessage, err := c.connectAndSendMessage(deleteByCommand)
+	if err != nil {
+		return 0, err
+	}
+
+	switch responseCommand {
+	case wire.ERR:
+		err := c.wire.DecodeError(responseMessage)
+		return 0, err
+	case wire.DELETEBY:
+		value, err := c.wire.DecodeDeleteByResponse(responseMessage)
+		if err != nil {
+			return 0, err
+		}
+
+		return value, nil
+	default:
+		return 0, errors.New(fmt.Sprintf("invalid response for DELETEBY command %q", responseCommand))
+	}
+}
+
+func (c *Client) ExpireBy(prefix string, expiration time.Time) (int, error) {
+	expireByCommand, err := c.wire.EncodeMessage(wire.EXPIREBY, prefix, c.wire.EncodeTime(expiration))
+	if err != nil {
+		return 0, err
+	}
+
+	responseCommand, responseMessage, err := c.connectAndSendMessage(expireByCommand)
+	if err != nil {
+		return 0, err
+	}
+
+	switch responseCommand {
+	case wire.ERR:
+		err := c.wire.DecodeError(responseMessage)
+		return 0, err
+	case wire.EXPIREBY:
+		value, err := c.wire.DecodeExpireByResponse(responseMessage)
+		if err != nil {
+			return 0, err
+		}
+
+		return value, nil
+	default:
+		return 0, errors.New(fmt.Sprintf("invalid response for EXPIREBY command %q", responseCommand))
 	}
 }
 

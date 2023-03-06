@@ -108,6 +108,37 @@ func TestE2EClient(t *testing.T) {
 		t.Fatalf("Expected 6 keys but found %d: %v", count, err)
 	}
 
+	keys, err := client.KeysBy("state:OH")
+	if err != nil || len(keys) != 2 {
+		t.Fatalf("Expected 2 keys to be returned but found %d: %q", len(keys), err)
+	}
+
+	count, err = client.DeleteBy("state:MI")
+	if count != 3 || err != nil {
+		t.Fatalf("Got error deleting keys by prefix, expected to delete 3 items but %d was returned: %q", count, err)
+	}
+
+	count, err = client.Count()
+	if err != nil || count != 3 {
+		t.Fatalf("Expected 3 keys but found %d: %v", count, err)
+	}
+
+	count, err = client.ExpireBy("state:OH", time.Now().Add(time.Millisecond*100))
+	if count != 2 || err != nil {
+		t.Fatalf("Got error expiring keys by prefix, expected to expire 2 items but %d was returned: %q", count, err)
+	}
+
+	count, err = client.Count()
+	if err != nil || count != 3 {
+		t.Fatalf("Expected 3 keys but found %d: %v", count, err)
+	}
+
+	time.Sleep(time.Millisecond * 100)
+	keys, err = client.KeysBy("")
+	if err != nil || len(keys) != 1 {
+		t.Fatalf("Expected 1 key but found %d: %v", len(keys), err)
+	}
+
 	err = runningServer.Stop()
 	if err != nil {
 		t.Fatalf("Got an error shutting down server %q", err)

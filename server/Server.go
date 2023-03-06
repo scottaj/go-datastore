@@ -217,8 +217,32 @@ func (s *Server) handleConnection(connection net.Conn) {
 		}
 
 		response = s.wire.EncodeCountResponse(s.dataStore.Count())
+	case wire.KEYSBY:
+		prefix, err := s.wire.DecodeKeysBy(message)
+		if err != nil {
+			s.sendErrorResponse(connection, err)
+			return
+		}
+
+		response = s.wire.EncodeKeysByResponse(s.dataStore.KeysBy(prefix))
+	case wire.DELETEBY:
+		prefix, err := s.wire.DecodeDeleteBy(message)
+		if err != nil {
+			s.sendErrorResponse(connection, err)
+			return
+		}
+
+		response = s.wire.EncodeDeleteByResponse(s.dataStore.DeleteBy(prefix))
+	case wire.EXPIREBY:
+		prefix, expiration, err := s.wire.DecodeExpireBy(message)
+		if err != nil {
+			s.sendErrorResponse(connection, err)
+			return
+		}
+
+		response = s.wire.EncodeExpireByResponse(s.dataStore.ExpireBy(prefix, expiration))
 	default:
-		response = s.wire.EncodeErrResponse(errors.New(fmt.Sprintf("Unknown command %q for message %v", command, message)))
+		response = s.wire.EncodeErrResponse(errors.New(fmt.Sprintf("Unknown command %q for message %b", command, message)))
 	}
 
 	_, err = connection.Write(response)
