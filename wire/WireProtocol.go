@@ -97,7 +97,7 @@ func (p *Protocol) DecodeError(message []byte) error {
 	}
 
 	if len(arguments) != 1 {
-		return errors.New(fmt.Sprintf("expected 1 argument for an err command but found %d: %b", len(arguments), arguments))
+		return errors.New(fmt.Sprintf("expected 1 argument for an err command but found %d: %v", len(arguments), arguments))
 	}
 
 	return errors.New(arguments[0])
