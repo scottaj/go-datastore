@@ -128,127 +128,133 @@ func (s *Server) handleConnection(connection net.Conn) {
 		return
 	}
 
-	command, err := s.wire.DecipherCommand(message)
+	response, err := s.handleMessage(message)
 	if err != nil {
 		s.sendErrorResponse(connection, err)
 		return
-	}
-
-	var response []byte
-	switch command {
-	case wire.READ:
-		key, err := s.wire.DecodeRead(message)
-		if err != nil {
-			s.sendErrorResponse(connection, err)
-			return
-		}
-
-		response = s.wire.EncodeReadResponse(s.dataStore.Read(key))
-	case wire.INSERT:
-		key, value, err := s.wire.DecodeInsert(message)
-		if err != nil {
-			s.sendErrorResponse(connection, err)
-			return
-		}
-
-		response = s.wire.EncodeInsertResponse(s.dataStore.Insert(key, value))
-	case wire.READEXPIRATION:
-		key, err := s.wire.DecodeReadExpiration(message)
-		if err != nil {
-			s.sendErrorResponse(connection, err)
-			return
-		}
-
-		response = s.wire.EncodeReadExpiationResponse(s.dataStore.ReadExpiration(key))
-	case wire.EXPIRE:
-		key, expiration, err := s.wire.DecodeExpire(message)
-		if err != nil {
-			s.sendErrorResponse(connection, err)
-			return
-		}
-
-		response = s.wire.EncodeExpireResponse(s.dataStore.Expire(key, expiration))
-	case wire.UPDATE:
-		key, value, err := s.wire.DecodeUpdate(message)
-		if err != nil {
-			s.sendErrorResponse(connection, err)
-			return
-		}
-
-		response = s.wire.EncodeUpdateResponse(s.dataStore.Update(key, value))
-	case wire.DELETE:
-		key, err := s.wire.DecodeDelete(message)
-		if err != nil {
-			s.sendErrorResponse(connection, err)
-			return
-		}
-
-		response = s.wire.EncodeDeleteResponse(s.dataStore.Delete(key))
-	case wire.UPSERT:
-		key, value, err := s.wire.DecodeUpsert(message)
-		if err != nil {
-			s.sendErrorResponse(connection, err)
-			return
-		}
-
-		response = s.wire.EncodeUpsertResponse(s.dataStore.Upsert(key, value))
-	case wire.PRESENT:
-		key, err := s.wire.DecodePresent(message)
-		if err != nil {
-			s.sendErrorResponse(connection, err)
-			return
-		}
-
-		response = s.wire.EncodePresentResponse(s.dataStore.Present(key))
-	case wire.TRUNCATE:
-		err := s.wire.DecodeTruncate(message)
-		if err != nil {
-			s.sendErrorResponse(connection, err)
-			return
-		}
-
-		s.dataStore.Truncate()
-		response = s.wire.EncodeAckResponse()
-	case wire.COUNT:
-		err := s.wire.DecodeCount(message)
-		if err != nil {
-			s.sendErrorResponse(connection, err)
-			return
-		}
-
-		response = s.wire.EncodeCountResponse(s.dataStore.Count())
-	case wire.KEYSBY:
-		prefix, err := s.wire.DecodeKeysBy(message)
-		if err != nil {
-			s.sendErrorResponse(connection, err)
-			return
-		}
-
-		response = s.wire.EncodeKeysByResponse(s.dataStore.KeysBy(prefix))
-	case wire.DELETEBY:
-		prefix, err := s.wire.DecodeDeleteBy(message)
-		if err != nil {
-			s.sendErrorResponse(connection, err)
-			return
-		}
-
-		response = s.wire.EncodeDeleteByResponse(s.dataStore.DeleteBy(prefix))
-	case wire.EXPIREBY:
-		prefix, expiration, err := s.wire.DecodeExpireBy(message)
-		if err != nil {
-			s.sendErrorResponse(connection, err)
-			return
-		}
-
-		response = s.wire.EncodeExpireByResponse(s.dataStore.ExpireBy(prefix, expiration))
-	default:
-		response = s.wire.EncodeErrResponse(errors.New(fmt.Sprintf("Unknown command %q for message %b", command, message)))
 	}
 
 	_, err = connection.Write(response)
 	if err != nil {
 		fmt.Println("Error writing response:", err.Error())
 		return
+	}
+}
+
+func (s *Server) handleMessage(message []byte) ([]byte, error) {
+	command, err := s.wire.DecipherCommand(message)
+	if err != nil {
+		return nil, err
+	}
+
+	switch command {
+	case wire.READ:
+		key, err := s.wire.DecodeRead(message)
+		if err != nil {
+			return nil, err
+		}
+
+		response := s.wire.EncodeReadResponse(s.dataStore.Read(key))
+		return response, nil
+	case wire.INSERT:
+		key, value, err := s.wire.DecodeInsert(message)
+		if err != nil {
+			return nil, err
+		}
+
+		response := s.wire.EncodeInsertResponse(s.dataStore.Insert(key, value))
+		return response, nil
+	case wire.READEXPIRATION:
+		key, err := s.wire.DecodeReadExpiration(message)
+		if err != nil {
+			return nil, err
+		}
+
+		response := s.wire.EncodeReadExpiationResponse(s.dataStore.ReadExpiration(key))
+		return response, nil
+	case wire.EXPIRE:
+		key, expiration, err := s.wire.DecodeExpire(message)
+		if err != nil {
+			return nil, err
+		}
+
+		response := s.wire.EncodeExpireResponse(s.dataStore.Expire(key, expiration))
+		return response, nil
+	case wire.UPDATE:
+		key, value, err := s.wire.DecodeUpdate(message)
+		if err != nil {
+			return nil, err
+		}
+
+		response := s.wire.EncodeUpdateResponse(s.dataStore.Update(key, value))
+		return response, nil
+	case wire.DELETE:
+		key, err := s.wire.DecodeDelete(message)
+		if err != nil {
+			return nil, err
+		}
+
+		response := s.wire.EncodeDeleteResponse(s.dataStore.Delete(key))
+		return response, nil
+	case wire.UPSERT:
+		key, value, err := s.wire.DecodeUpsert(message)
+		if err != nil {
+			return nil, err
+		}
+
+		response := s.wire.EncodeUpsertResponse(s.dataStore.Upsert(key, value))
+		return response, nil
+	case wire.PRESENT:
+		key, err := s.wire.DecodePresent(message)
+		if err != nil {
+			return nil, err
+		}
+
+		response := s.wire.EncodePresentResponse(s.dataStore.Present(key))
+		return response, nil
+	case wire.TRUNCATE:
+		err := s.wire.DecodeTruncate(message)
+		if err != nil {
+			return nil, err
+		}
+
+		s.dataStore.Truncate()
+		response := s.wire.EncodeAckResponse()
+		return response, nil
+	case wire.COUNT:
+		err := s.wire.DecodeCount(message)
+		if err != nil {
+			return nil, err
+		}
+
+		response := s.wire.EncodeCountResponse(s.dataStore.Count())
+		return response, nil
+	case wire.KEYSBY:
+		prefix, err := s.wire.DecodeKeysBy(message)
+		if err != nil {
+			return nil, err
+		}
+
+		response := s.wire.EncodeKeysByResponse(s.dataStore.KeysBy(prefix))
+		return response, nil
+	case wire.DELETEBY:
+		prefix, err := s.wire.DecodeDeleteBy(message)
+		if err != nil {
+			return nil, err
+		}
+
+		response := s.wire.EncodeDeleteByResponse(s.dataStore.DeleteBy(prefix))
+		return response, nil
+	case wire.EXPIREBY:
+		prefix, expiration, err := s.wire.DecodeExpireBy(message)
+		if err != nil {
+			return nil, err
+		}
+
+		response := s.wire.EncodeExpireByResponse(s.dataStore.ExpireBy(prefix, expiration))
+		return response, nil
+	default:
+		return nil, errors.New(fmt.Sprintf("Unknown command %q for message %b", command, message))
 	}
 }
 
